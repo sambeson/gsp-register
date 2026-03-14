@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 200" width="300" height="200">
+  <style>
+    text {
+      fill: #1a5c2a;
+      font-family: Georgia, 'Times New Roman', serif;
+      font-weight: bold;
+      text-anchor: middle;
+    }
+  </style>
+  <text x="150" y="70" font-size="62">Garden</text>
+  <text x="150" y="130" font-size="62">State</text>
+  <text x="150" y="190" font-size="62">Press</text>
+</svg>

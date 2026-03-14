@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Garden State Press — Register</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lab+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --yellow: #febe10;
+    --green: #006838;
+    --green-light: #009a4c;
+    --white: #fff;
+    --black: #111;
+    --gray: #e8e8e8;
+    --gray-dark: #bbb;
+    --red: #c0392b;
+    --font: 'Lab Mono', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--font);
+    background: var(--yellow);
+    color: var(--black);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* HEADER */
+  header {
+    background: var(--green);
+    color: var(--white);
+    padding: 10px 20px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-shrink: 0;
+    border-bottom: 3px solid var(--black);
+  }
+  header h1 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+  header span {
+    font-size: 0.75rem;
+    opacity: 0.75;
+    letter-spacing: 0.1em;
+  }
+
+  /* TABS */
+  .tabs {
+    display: flex;
+    background: var(--black);
+    flex-shrink: 0;
+  }
+  .tab-btn {
+    padding: 8px 24px;
+    font-family: var(--font);
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    border: none;
+    cursor: pointer;
+    background: var(--black);
+    color: var(--gray-dark);
+    border-right: 1px solid #333;
+    transition: background 0.15s, color 0.15s;
+  }
+  .tab-btn.active {
+    background: var(--yellow);
+    color: var(--black);
+  }
+
+  /* TAB PANELS */
+  .tab-panel { display: none; flex: 1; overflow: hidden; }
+  .tab-panel.active { display: flex; }
+
+  /* ── REGISTER TAB ── */
+  #register-panel {
+    flex-direction: column;
+  }
+
+  .register-search-bar {
+    padding: 8px 16px;
+    background: var(--green);
+    border-bottom: 2px solid var(--black);
+    flex-shrink: 0;
+  }
+  .register-search-bar input {
+    width: 100%;
+    max-width: 400px;
+    padding: 6px 12px;
+    font-family: var(--font);
+    font-size: 0.85rem;
+    border: 2px solid var(--black);
+    border-radius: 3px;
+    background: var(--white);
+    outline: none;
+  }
+  .register-search-bar input:focus { border-color: var(--yellow); }
+
+  .register-body {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ITEM GRID */
+  .item-grid-wrap {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    background: var(--yellow);
+    border-right: 3px solid var(--black);
+  }
+  .item-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 8px;
+  }
+  .item-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 10px 12px;
+    border: 2.5px solid var(--black);
+    border-radius: 4px;
+    cursor: pointer;
+    font-family: var(--font);
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.3;
+    text-align: left;
+    transition: transform 0.08s, box-shadow 0.08s;
+    user-select: none;
+  }
+  .item-btn:active { transform: scale(0.96); }
+  .item-btn.mila {
+    background: var(--yellow);
+    color: var(--black);
+    box-shadow: 3px 3px 0 var(--black);
+  }
+  .item-btn.merna {
+    background: var(--green);
+    color: var(--white);
+    box-shadow: 3px 3px 0 var(--black);
+  }
+  .item-btn:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--black); }
+  .item-btn .price {
+    margin-top: 4px;
+    font-size: 0.9rem;
+    font-weight: 700;
+    opacity: 0.85;
+  }
+  .item-btn .seller-tag {
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    opacity: 0.6;
+    margin-top: 2px;
+    text-transform: uppercase;
+  }
+  .item-btn.hidden { display: none; }
+  .no-results {
+    grid-column: 1/-1;
+    padding: 24px;
+    text-align: center;
+    font-size: 0.9rem;
+    color: var(--green);
+    font-style: italic;
+  }
+
+  /* ORDER PANEL */
+  .order-panel {
+    width: 300px;
+    flex-shrink: 0;
+    background: var(--white);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-left: 3px solid var(--black);
+  }
+  .order-header {
+    background: var(--black);
+    color: var(--yellow);
+    padding: 8px 14px;
+    font-size: 0.8rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .order-items {
+    flex: 1;
+    overflow-y: auto;
+    padding: 8px 10px;
+    min-height: 80px;
+    border-bottom: 2px solid var(--gray);
+  }
+  .order-empty {
+    color: var(--gray-dark);
+    font-size: 0.75rem;
+    font-style: italic;
+    padding: 12px 4px;
+    text-align: center;
+  }
+  .order-line {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 0;
+    border-bottom: 1px solid var(--gray);
+    font-size: 0.75rem;
+  }
+  .order-line:last-child { border-bottom: none; }
+  .order-line-name { flex: 1; line-height: 1.2; }
+  .order-line-price { font-weight: 700; white-space: nowrap; margin-left: 4px; }
+  .qty-controls { display: flex; align-items: center; gap: 2px; flex-shrink: 0; }
+  .qty-btn {
+    width: 20px; height: 20px;
+    border: 1.5px solid var(--black);
+    border-radius: 3px;
+    background: var(--gray);
+    font-family: var(--font);
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    line-height: 1;
+  }
+  .qty-btn:hover { background: var(--yellow); }
+  .qty-num { min-width: 20px; text-align: center; font-weight: 700; font-size: 0.8rem; }
+  .remove-btn {
+    width: 20px; height: 20px;
+    border: 1.5px solid var(--red);
+    border-radius: 3px;
+    background: #fff0f0;
+    color: var(--red);
+    font-family: var(--font);
+    font-size: 0.8rem;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    margin-left: 2px;
+  }
+  .remove-btn:hover { background: var(--red); color: var(--white); }
+
+  .order-footer {
+    padding: 10px 12px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 0.8rem;
+  }
+  .subtotal-row {
+    display: flex;
+    justify-content: space-between;
+    font-weight: 700;
+    font-size: 1rem;
+    padding: 6px 0;
+    border-top: 2px solid var(--black);
+    border-bottom: 2px solid var(--black);
+  }
+
+  .order-footer label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    display: block;
+    margin-bottom: 3px;
+  }
+  .order-footer input[type="text"],
+  .order-footer input[type="number"] {
+    width: 100%;
+    padding: 5px 8px;
+    font-family: var(--font);
+    font-size: 0.85rem;
+    border: 2px solid var(--black);
+    border-radius: 3px;
+    outline: none;
+    background: var(--white);
+  }
+  .order-footer input:focus { border-color: var(--green); }
+
+  .payment-btns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 5px;
+  }
+  .pay-btn {
+    padding: 6px;
+    font-family: var(--font);
+    font-size: 0.75rem;
+    font-weight: 700;
+    border: 2px solid var(--black);
+    border-radius: 3px;
+    cursor: pointer;
+    background: var(--gray);
+    color: var(--black);
+    transition: background 0.1s;
+    letter-spacing: 0.05em;
+  }
+  .pay-btn:hover { background: var(--yellow); }
+  .pay-btn.selected { background: var(--green); color: var(--white); border-color: var(--green); }
+
+  .cash-section {
+    display: none;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .cash-section.visible { display: flex; }
+  .change-display {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 5px 8px;
+    border: 2px solid var(--black);
+    border-radius: 3px;
+    font-weight: 700;
+    font-size: 0.9rem;
+    background: var(--gray);
+  }
+  .change-display.positive { background: #e6f7ed; border-color: var(--green-light); color: var(--green); }
+  .change-display.negative { background: #fdecea; border-color: var(--red); color: var(--red); }
+
+  .charge-btn {
+    width: 100%;
+    padding: 12px;
+    font-family: var(--font);
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: var(--green);
+    color: var(--yellow);
+    border: 3px solid var(--black);
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: 4px 4px 0 var(--black);
+    transition: transform 0.08s, box-shadow 0.08s;
+  }
+  .charge-btn:hover:not(:disabled) { transform: translate(-2px,-2px); box-shadow: 6px 6px 0 var(--black); }
+  .charge-btn:active:not(:disabled) { transform: translate(2px,2px); box-shadow: 2px 2px 0 var(--black); }
+  .charge-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; transform: none; }
+
+  .clear-btn {
+    width: 100%;
+    padding: 7px;
+    font-family: var(--font);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: transparent;
+    color: var(--red);
+    border: 2px solid var(--red);
+    border-radius: 3px;
+    cursor: pointer;
+  }
+  .clear-btn:hover { background: var(--red); color: var(--white); }
+
+  /* ── SALES LOG TAB ── */
+  #log-panel {
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .log-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: var(--green);
+    border-bottom: 2px solid var(--black);
+    flex-shrink: 0;
+  }
+  .log-toolbar button {
+    padding: 6px 14px;
+    font-family: var(--font);
+    font-size: 0.75rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    border: 2px solid var(--white);
+    border-radius: 3px;
+    cursor: pointer;
+    color: var(--white);
+    background: transparent;
+    transition: background 0.1s, color 0.1s;
+  }
+  .log-toolbar button:hover { background: var(--white); color: var(--green); }
+  .log-toolbar .clear-log-btn { border-color: #ff8a80; color: #ff8a80; }
+  .log-toolbar .clear-log-btn:hover { background: #ff8a80; color: var(--white); }
+  .log-toolbar span { color: var(--white); font-size: 0.75rem; margin-left: auto; opacity: 0.7; }
+
+  .summary-bar {
+    display: flex;
+    gap: 0;
+    flex-shrink: 0;
+    border-bottom: 3px solid var(--black);
+    overflow-x: auto;
+    background: var(--yellow);
+  }
+  .summary-cell {
+    flex: 1;
+    min-width: 100px;
+    padding: 8px 10px;
+    border-right: 2px solid var(--black);
+    text-align: center;
+  }
+  .summary-cell:last-child { border-right: none; }
+  .summary-cell .s-label {
+    font-size: 0.6rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--green);
+    font-weight: 700;
+    display: block;
+  }
+  .summary-cell .s-value {
+    font-size: 1rem;
+    font-weight: 700;
+    display: block;
+  }
+
+  .log-table-wrap {
+    flex: 1;
+    overflow: auto;
+    background: var(--white);
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.75rem;
+  }
+  thead th {
+    background: var(--black);
+    color: var(--yellow);
+    padding: 8px 10px;
+    text-align: left;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    position: sticky;
+    top: 0;
+    white-space: nowrap;
+  }
+  tbody tr { border-bottom: 1px solid var(--gray); }
+  tbody tr:hover { background: #fffbe6; }
+  tbody td { padding: 7px 10px; vertical-align: top; }
+  tbody td.items-cell { max-width: 220px; line-height: 1.5; }
+  tbody td.money { font-weight: 700; white-space: nowrap; }
+  tbody td.merna-col { color: var(--green); font-weight: 700; }
+  tbody td.mila-col { color: #9a6600; font-weight: 700; }
+  .pay-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    background: var(--gray);
+    border: 1px solid var(--gray-dark);
+  }
+  .pay-badge.cash { background: #e6f7ed; border-color: var(--green-light); color: var(--green); }
+  .pay-badge.venmo { background: #e3f0ff; border-color: #3d95ce; color: #1565c0; }
+  .pay-badge.square { background: #fff0e0; border-color: #e67e22; color: #e67e22; }
+  .pay-badge.zelle { background: #f3e8ff; border-color: #8e44ad; color: #6c3483; }
+  .empty-log { padding: 40px; text-align: center; color: var(--gray-dark); font-style: italic; }
+
+  /* TOAST */
+  .toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--green);
+    color: var(--yellow);
+    padding: 12px 28px;
+    border-radius: 4px;
+    font-family: var(--font);
+    font-size: 0.9rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    border: 3px solid var(--black);
+    box-shadow: 4px 4px 0 var(--black);
+    transition: transform 0.3s cubic-bezier(0.175,0.885,0.32,1.275);
+    z-index: 9999;
+    pointer-events: none;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+
+  /* SCROLLBAR */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--green); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>Garden State Press</h1>
+    <span>FLEMINGTON DIY 26 — REGISTER</span>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" onclick="switchTab('register')">Register</button>
+  <button class="tab-btn" onclick="switchTab('log')">Sales Log</button>
+</div>
+
+<!-- REGISTER TAB -->
+<div id="register-panel" class="tab-panel active">
+  <div class="register-search-bar">
+    <input type="text" id="search-input" placeholder="Search items..." oninput="filterItems(this.value)">
+  </div>
+  <div class="register-body">
+    <!-- Item Grid -->
+    <div class="item-grid-wrap">
+      <div class="item-grid" id="item-grid"></div>
+    </div>
+    <!-- Order Panel -->
+    <div class="order-panel">
+      <div class="order-header">Current Order</div>
+      <div class="order-items" id="order-items">
+        <div class="order-empty" id="order-empty">No items added yet.</div>
+      </div>
+      <div class="order-footer">
+        <div class="subtotal-row">
+          <span>SUBTOTAL</span>
+          <span id="subtotal-display">$0.00</span>
+        </div>
+
+        <div>
+          <label>Customer Name</label>
+          <input type="text" id="customer-name" placeholder="Enter name..." oninput="updateChargeBtn()">
+        </div>
+
+        <div>
+          <label>Payment Method</label>
+          <div class="payment-btns">
+            <button class="pay-btn" onclick="selectPayment('Ca$h')">Ca$h</button>
+            <button class="pay-btn" onclick="selectPayment('Venmo')">Venmo</button>
+            <button class="pay-btn" onclick="selectPayment('Square')">Square</button>
+            <button class="pay-btn" onclick="selectPayment('Zelle')">Zelle</button>
+          </div>
+        </div>
+
+        <div class="cash-section" id="cash-section">
+          <div>
+            <label>Amount Tendered ($)</label>
+            <input type="number" id="tendered-input" min="0" step="0.01" placeholder="0.00" oninput="updateChange()">
+          </div>
+          <div class="change-display" id="change-display">
+            <span>Change Due</span>
+            <span id="change-amount">—</span>
+          </div>
+        </div>
+
+        <button class="charge-btn" id="charge-btn" onclick="chargeSale()" disabled>CHARGE</button>
+        <button class="clear-btn" onclick="clearCart()">Clear Order</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SALES LOG TAB -->
+<div id="log-panel" class="tab-panel">
+  <div class="log-toolbar">
+    <button onclick="exportCSV()">Export CSV</button>
+    <button class="clear-log-btn" onclick="clearLog()">Clear All</button>
+    <span id="log-count"></span>
+  </div>
+  <div class="summary-bar" id="summary-bar"></div>
+  <div class="log-table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Timestamp</th>
+          <th>Customer</th>
+          <th>Items</th>
+          <th>Total</th>
+          <th>Payment</th>
+          <th>Merna Rev</th>
+          <th>Mila Rev</th>
+        </tr>
+      </thead>
+      <tbody id="log-tbody"></tbody>
+    </table>
+    <div class="empty-log" id="log-empty" style="display:none">No sales recorded yet.</div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ── PRODUCT CATALOG ──
+const CATALOG = [
+  // Mila
+  { name: "NJ is for Haters",               price: 8,  seller: "Mila", category: "sticker" },
+  { name: "Jersey not Joisey",               price: 7,  seller: "Mila", category: "zine" },
+  { name: "Jersey not Joisey Sticker",       price: 4,  seller: "Mila", category: "sticker" },
+  { name: "NJ apologist",                    price: 8,  seller: "Mila", category: "sticker" },
+  { name: "Hey Ladies",                      price: 7,  seller: "Mila", category: "zine" },
+  { name: "That's Not My Name",              price: 7,  seller: "Mila", category: "zine" },
+  { name: "Cooper Black Number One",         price: 20, seller: "Mila", category: "book" },
+  { name: "Congestion Pricing",              price: 7,  seller: "Mila", category: "zine" },
+  { name: "Pathways",                        price: 14, seller: "Mila", category: "book" },
+  { name: "Tiny Towns of New Jersey",        price: 7,  seller: "Mila", category: "book" },
+  { name: "Dog Eared",                       price: 11, seller: "Mila", category: "book" },
+  { name: "FAQ Watchmaking",                 price: 7,  seller: "Mila", category: "zine" },
+  { name: "Still not my name",               price: 7,  seller: "Mila", category: "zine" },
+  { name: "how jersey are you",              price: 7,  seller: "Mila", category: "zine" },
+  { name: "doors",                           price: 7,  seller: "Mila", category: "zine" },
+  { name: "7 fishes",                        price: 7,  seller: "Mila", category: "zine" },
+  { name: "pride",                           price: 2,  seller: "Mila", category: "pin" },
+  { name: "NJ Transit Bingo",                price: 6,  seller: "Mila", category: "print" },
+  { name: "She's a Jersey Girl",             price: 20, seller: "Mila", category: "poster" },
+  { name: "Born in France Raised in Jersey", price: 20, seller: "Mila", category: "poster" },
+  { name: "Diner print",                     price: 12, seller: "Mila", category: "poster" },
+  { name: "Blueberries",                     price: 4,  seller: "Mila", category: "print" },
+  { name: "Lucy The Elephant",               price: 4,  seller: "Mila", category: "print" },
+  { name: "Red Mill",                        price: 4,  seller: "Mila", category: "print" },
+  { name: "Trenton makes the world takes",   price: 4,  seller: "Mila", category: "print" },
+  { name: "Lady Liberty",                    price: 4,  seller: "Mila", category: "print" },
+  // Merna
+  { name: "I went to NJ and all I got was this Bagel", price: 8,  seller: "Merna", category: "sticker" },
+  { name: "Jersey Princess",                 price: 5,  seller: "Merna", category: "sticker" },
+  { name: "Shirley Temple Lover (Glitter)",  price: 5,  seller: "Merna", category: "sticker" },
+  { name: "Shirley Temple Lover (Rounded)",  price: 5,  seller: "Merna", category: "sticker" },
+  { name: "I \u2665 Pigeons",               price: 5,  seller: "Merna", category: "sticker" },
+  { name: "Worm Talk",                       price: 4,  seller: "Merna", category: "sticker" },
+  { name: "Shirley Temple",                  price: 20, seller: "Merna", category: "poster" },
+  { name: "Tomato!",                         price: 12, seller: "Merna", category: "print" },
+  { name: "NJ Backyard Bird (Yellow)",       price: 7,  seller: "Merna", category: "zine" },
+  { name: "Ways to Rest (yellow)",           price: 7,  seller: "Merna", category: "zine" },
+  { name: "Ways to Rest (white)",            price: 7,  seller: "Merna", category: "zine" },
+  { name: "english idioms",                  price: 7,  seller: "Merna", category: "zine" },
+  { name: "I heart crafting",                price: 4,  seller: "Merna", category: "pin" },
+  { name: "button",                          price: 4,  seller: "Merna", category: "pin" },
+];
+
+// ── STATE ──
+let cart = [];       // [{ item, qty }]
+let payment = null;  // string
+
+// ── INIT ──
+function init() {
+  renderGrid();
+  renderLog();
+}
+
+// ── ITEM GRID ──
+function renderGrid() {
+  const grid = document.getElementById('item-grid');
+  grid.innerHTML = '';
+  CATALOG.forEach((item, i) => {
+    const btn = document.createElement('button');
+    btn.className = `item-btn ${item.seller.toLowerCase()}`;
+    btn.dataset.idx = i;
+    btn.innerHTML = `
+      <span>${item.name}</span>
+      <span class="price">$${item.price}</span>
+      <span class="seller-tag">${item.seller}</span>
+    `;
+    btn.addEventListener('click', () => addToCart(i));
+    grid.appendChild(btn);
+  });
+}
+
+function filterItems(query) {
+  const q = query.trim().toLowerCase();
+  let anyVisible = false;
+  document.querySelectorAll('.item-btn').forEach(btn => {
+    const item = CATALOG[btn.dataset.idx];
+    const match = !q || item.name.toLowerCase().includes(q);
+    btn.classList.toggle('hidden', !match);
+    if (match) anyVisible = true;
+  });
+  let noResults = document.querySelector('.no-results');
+  if (!anyVisible) {
+    if (!noResults) {
+      noResults = document.createElement('div');
+      noResults.className = 'no-results';
+      document.getElementById('item-grid').appendChild(noResults);
+    }
+    noResults.textContent = `No items matching "${query}"`;
+  } else if (noResults) {
+    noResults.remove();
+  }
+}
+
+// ── CART ──
+function addToCart(idx) {
+  const existing = cart.find(c => c.item === CATALOG[idx]);
+  if (existing) {
+    existing.qty++;
+  } else {
+    cart.push({ item: CATALOG[idx], qty: 1 });
+  }
+  renderCart();
+  updateChargeBtn();
+}
+
+function changeQty(idx, delta) {
+  cart[idx].qty += delta;
+  if (cart[idx].qty <= 0) cart.splice(idx, 1);
+  renderCart();
+  updateChargeBtn();
+  if (payment === 'Ca$h') updateChange();
+}
+
+function removeFromCart(idx) {
+  cart.splice(idx, 1);
+  renderCart();
+  updateChargeBtn();
+  if (payment === 'Ca$h') updateChange();
+}
+
+function renderCart() {
+  const container = document.getElementById('order-items');
+  // Remove all lines (but NOT the empty placeholder — it lives outside the loop)
+  container.querySelectorAll('.order-line').forEach(el => el.remove());
+
+  const emptyMsg = document.getElementById('order-empty');
+
+  if (cart.length === 0) {
+    emptyMsg.style.display = '';
+    document.getElementById('subtotal-display').textContent = '$0.00';
+    return;
+  }
+
+  emptyMsg.style.display = 'none';
+  let subtotal = 0;
+  cart.forEach((c, i) => {
+    subtotal += c.item.price * c.qty;
+    const line = document.createElement('div');
+    line.className = 'order-line';
+    line.innerHTML = `
+      <span class="order-line-name">${c.item.name}</span>
+      <div class="qty-controls">
+        <button class="qty-btn" onclick="changeQty(${i}, -1)">−</button>
+        <span class="qty-num">${c.qty}</span>
+        <button class="qty-btn" onclick="changeQty(${i}, 1)">+</button>
+      </div>
+      <span class="order-line-price">$${(c.item.price * c.qty).toFixed(2)}</span>
+      <button class="remove-btn" onclick="removeFromCart(${i})">✕</button>
+    `;
+    container.appendChild(line);
+  });
+  document.getElementById('subtotal-display').textContent = `$${subtotal.toFixed(2)}`;
+}
+
+function clearCart() {
+  cart = [];
+  payment = null;
+  document.querySelectorAll('.pay-btn').forEach(b => b.classList.remove('selected'));
+  document.getElementById('cash-section').classList.remove('visible');
+  document.getElementById('customer-name').value = '';
+  document.getElementById('tendered-input').value = '';
+  document.getElementById('change-amount').textContent = '—';
+  document.getElementById('change-display').className = 'change-display';
+  renderCart();
+  updateChargeBtn();
+}
+
+function getSubtotal() {
+  return cart.reduce((sum, c) => sum + c.item.price * c.qty, 0);
+}
+
+// ── PAYMENT ──
+function selectPayment(method) {
+  payment = method;
+  document.querySelectorAll('.pay-btn').forEach(b => {
+    b.classList.toggle('selected', b.textContent.trim() === method);
+  });
+  const cashSection = document.getElementById('cash-section');
+  if (method === 'Ca$h') {
+    cashSection.classList.add('visible');
+    updateChange();
+  } else {
+    cashSection.classList.remove('visible');
+  }
+  updateChargeBtn();
+}
+
+function updateChange() {
+  const tendered = parseFloat(document.getElementById('tendered-input').value) || 0;
+  const subtotal = getSubtotal();
+  const change = tendered - subtotal;
+  const display = document.getElementById('change-display');
+  const amount = document.getElementById('change-amount');
+  if (!tendered) {
+    amount.textContent = '—';
+    display.className = 'change-display';
+  } else if (change >= 0) {
+    amount.textContent = `$${change.toFixed(2)}`;
+    display.className = 'change-display positive';
+  } else {
+    amount.textContent = `-$${Math.abs(change).toFixed(2)}`;
+    display.className = 'change-display negative';
+  }
+  updateChargeBtn();
+}
+
+// ── CHARGE BUTTON ──
+function updateChargeBtn() {
+  const btn = document.getElementById('charge-btn');
+  const hasItems = cart.length > 0;
+  const hasName = document.getElementById('customer-name').value.trim().length > 0;
+  const hasPayment = !!payment;
+  let cashOk = true;
+  if (payment === 'Ca$h') {
+    const tendered = parseFloat(document.getElementById('tendered-input').value) || 0;
+    cashOk = tendered >= getSubtotal() && getSubtotal() > 0;
+  }
+  btn.disabled = !(hasItems && hasName && hasPayment && cashOk);
+}
+
+// ── CHARGE SALE ──
+function chargeSale() {
+  const customer = document.getElementById('customer-name').value.trim();
+  const subtotal = getSubtotal();
+  const mernaRev = cart.reduce((s, c) => c.item.seller === 'Merna' ? s + c.item.price * c.qty : s, 0);
+  const milaRev  = cart.reduce((s, c) => c.item.seller === 'Mila'  ? s + c.item.price * c.qty : s, 0);
+
+  const sale = {
+    id: Date.now(),
+    timestamp: new Date().toLocaleString(),
+    customer,
+    items: cart.map(c => ({ name: c.item.name, price: c.item.price, seller: c.item.seller, qty: c.qty })),
+    total: subtotal,
+    payment,
+    mernaRev,
+    milaRev,
+  };
+
+  const sales = loadSales();
+  sales.push(sale);
+  saveSales(sales);
+
+  showToast(`Sale recorded! $${subtotal.toFixed(2)} via ${payment}`);
+  clearCart();
+  renderLog();
+}
+
+// ── STORAGE ──
+function loadSales() {
+  try { return JSON.parse(localStorage.getItem('gsp_sales') || '[]'); } catch { return []; }
+}
+function saveSales(sales) {
+  localStorage.setItem('gsp_sales', JSON.stringify(sales));
+}
+
+// ── SALES LOG ──
+function renderLog() {
+  const sales = loadSales();
+  const tbody = document.getElementById('log-tbody');
+  const empty = document.getElementById('log-empty');
+  document.getElementById('log-count').textContent = `${sales.length} sale${sales.length !== 1 ? 's' : ''}`;
+
+  renderSummary(sales);
+
+  if (sales.length === 0) {
+    tbody.innerHTML = '';
+    empty.style.display = '';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const rows = [...sales].reverse();
+  tbody.innerHTML = rows.map((sale, i) => {
+    const num = sales.length - i;
+    const itemsText = sale.items.map(it => `${it.qty}× ${it.name} ($${it.price})`).join('<br>');
+    const payClass = { 'Ca$h': 'cash', 'Venmo': 'venmo', 'Square': 'square', 'Zelle': 'zelle' }[sale.payment] || '';
+    return `<tr>
+      <td>${num}</td>
+      <td style="white-space:nowrap;font-size:0.7rem">${sale.timestamp}</td>
+      <td>${escHtml(sale.customer)}</td>
+      <td class="items-cell">${itemsText}</td>
+      <td class="money">$${sale.total.toFixed(2)}</td>
+      <td><span class="pay-badge ${payClass}">${sale.payment}</span></td>
+      <td class="money merna-col">$${sale.mernaRev.toFixed(2)}</td>
+      <td class="money mila-col">$${sale.milaRev.toFixed(2)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderSummary(sales) {
+  const mernaTotal  = sales.reduce((s, x) => s + x.mernaRev, 0);
+  const milaTotal   = sales.reduce((s, x) => s + x.milaRev, 0);
+  const cashTotal   = sales.filter(x => x.payment === 'Ca$h').reduce((s, x) => s + x.total, 0);
+  const venmoTotal  = sales.filter(x => x.payment === 'Venmo').reduce((s, x) => s + x.total, 0);
+  const squareTotal = sales.filter(x => x.payment === 'Square').reduce((s, x) => s + x.total, 0);
+  const zelleTotal  = sales.filter(x => x.payment === 'Zelle').reduce((s, x) => s + x.total, 0);
+  const grandTotal  = sales.reduce((s, x) => s + x.total, 0);
+
+  document.getElementById('summary-bar').innerHTML = `
+    <div class="summary-cell"><span class="s-label">Merna Rev</span><span class="s-value">$${mernaTotal.toFixed(2)}</span></div>
+    <div class="summary-cell"><span class="s-label">Mila Rev</span><span class="s-value">$${milaTotal.toFixed(2)}</span></div>
+    <div class="summary-cell"><span class="s-label">Ca$h</span><span class="s-value">$${cashTotal.toFixed(2)}</span></div>
+    <div class="summary-cell"><span class="s-label">Venmo</span><span class="s-value">$${venmoTotal.toFixed(2)}</span></div>
+    <div class="summary-cell"><span class="s-label">Square</span><span class="s-value">$${squareTotal.toFixed(2)}</span></div>
+    <div class="summary-cell"><span class="s-label">Zelle</span><span class="s-value">$${zelleTotal.toFixed(2)}</span></div>
+    <div class="summary-cell"><span class="s-label">Grand Total</span><span class="s-value">$${grandTotal.toFixed(2)}</span></div>
+  `;
+}
+
+// ── EXPORT CSV ──
+function exportCSV() {
+  const sales = loadSales();
+  if (!sales.length) { showToast('No sales to export.'); return; }
+  const headers = ['Sale #','Timestamp','Customer','Items','Total','Payment','Merna Rev','Mila Rev'];
+  const rows = [...sales].reverse().map((sale, i) => [
+    sales.length - i,
+    sale.timestamp,
+    sale.customer,
+    sale.items.map(it => `${it.qty}x ${it.name}`).join('; '),
+    sale.total.toFixed(2),
+    sale.payment,
+    sale.mernaRev.toFixed(2),
+    sale.milaRev.toFixed(2),
+  ]);
+  const csv = [headers, ...rows].map(r => r.map(v => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `gsp-sales-${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── CLEAR LOG ──
+function clearLog() {
+  if (confirm('Delete ALL sales records? This cannot be undone.')) {
+    localStorage.removeItem('gsp_sales');
+    renderLog();
+    showToast('Sales log cleared.');
+  }
+}
+
+// ── TABS ──
+function switchTab(tab) {
+  document.querySelectorAll('.tab-btn').forEach((b, i) => {
+    b.classList.toggle('active', ['register','log'][i] === tab);
+  });
+  document.getElementById('register-panel').classList.toggle('active', tab === 'register');
+  document.getElementById('log-panel').classList.toggle('active', tab === 'log');
+  if (tab === 'log') renderLog();
+}
+
+// ── TOAST ──
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ── UTILS ──
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── START ──
+init();
+</script>
+</body>
+</html>

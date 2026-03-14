@@ -501,6 +501,69 @@
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--green); border-radius: 3px; }
+
+  /* ── MOBILE ── */
+  @media (max-width: 700px) {
+    body {
+      height: 100dvh;
+    }
+
+    /* Tabs fill full width */
+    .tabs { flex: 0 0 auto; }
+    .tab-btn {
+      flex: 1;
+      padding: 10px 6px;
+      font-size: 0.72rem;
+    }
+
+    /* Stack item grid above order panel */
+    .register-body {
+      flex-direction: column;
+    }
+
+    .item-grid-wrap {
+      border-right: none;
+      border-bottom: 3px solid var(--black);
+      min-height: 0;
+    }
+
+    .item-grid {
+      grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    }
+
+    /* Larger touch targets on item cards */
+    .item-btn {
+      padding: 12px 14px;
+      font-size: 0.8rem;
+    }
+
+    /* Order panel full width, capped height */
+    .order-panel {
+      width: 100%;
+      max-height: 48vh;
+      border-left: none;
+      border-top: 3px solid var(--black);
+      flex-shrink: 0;
+    }
+
+    /* Bigger qty/remove buttons for thumbs */
+    .qty-btn, .remove-btn {
+      width: 28px;
+      height: 28px;
+      font-size: 0.9rem;
+    }
+
+    /* Log table scrolls horizontally */
+    .log-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+    /* Log toolbar wraps on small screens */
+    .log-toolbar { flex-wrap: wrap; gap: 6px; }
+    .log-toolbar span { width: 100%; margin-left: 0; }
+
+    /* Summary bar scrolls */
+    .summary-bar { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .summary-cell { min-width: 90px; }
+  }
 </style>
 </head>
 <body>

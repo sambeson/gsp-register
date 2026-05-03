@@ -220,6 +220,8 @@
   .intern-msg { font-size: 0.74rem; line-height: 1.35; }
   .intern-copy-btn { padding: 5px 10px; font-family: var(--font); font-size: 0.68rem; font-weight: 700; border: 2px solid var(--green); border-radius: 3px; cursor: pointer; color: var(--green); background: transparent; white-space: nowrap; }
   .intern-copy-btn:hover { background: var(--green); color: var(--white); }
+  .intern-text-btn { padding: 5px 10px; font-family: var(--font); font-size: 0.68rem; font-weight: 700; border: 2px solid #1565c0; border-radius: 3px; cursor: pointer; color: #1565c0; background: transparent; white-space: nowrap; margin-left: 6px; }
+  .intern-text-btn:hover { background: #1565c0; color: var(--white); }
 
   /* ── MODAL ── */
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; align-items: center; justify-content: center; }
@@ -1411,6 +1413,7 @@ const INTERN_PARTS = {
     'You are a legend.'
   ]
 };
+const INTERN_PHONE = '7326887874';
 
 function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -1435,8 +1438,13 @@ function renderInternMessages() {
   if (!list) return;
   const messages = getRandomInternMessages(10);
   list.innerHTML = messages.map(msg =>
-    `<li><span class="intern-msg">${escHtml(msg)}</span><button class="intern-copy-btn" onclick="copyInternMessage('${msg.replace(/'/g, "\\'")}')">Copy</button></li>`
+    `<li><span class="intern-msg">${escHtml(msg)}</span><div><button class="intern-copy-btn" onclick="copyInternMessage('${msg.replace(/'/g, "\\'")}')">Copy</button><button class="intern-text-btn" onclick="openSmsToSam('${msg.replace(/'/g, "\\'")}')">Text Sam</button></div></li>`
   ).join('');
+}
+
+function openSmsToSam(msg) {
+  const smsUrl = `sms:${INTERN_PHONE}?body=${encodeURIComponent(msg)}`;
+  window.location.href = smsUrl;
 }
 
 async function copyInternMessage(msg) {

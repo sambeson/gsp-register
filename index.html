@@ -131,6 +131,8 @@
   .pay-badge.venmo { background: #e3f0ff; border-color: #3d95ce; color: #1565c0; }
   .pay-badge.square { background: #fff0e0; border-color: #e67e22; color: #e67e22; }
   .pay-badge.zelle { background: #f3e8ff; border-color: #8e44ad; color: #6c3483; }
+  .pay-badge.editable { cursor: pointer; }
+  .pay-badge.editable:hover { filter: brightness(0.95); }
   .empty-state { padding: 40px; text-align: center; color: var(--gray-dark); font-style: italic; font-size: 0.85rem; }
   .day-filter-bar { display: flex; align-items: center; gap: 5px; padding: 6px 12px; background: var(--black); border-bottom: 2px solid #333; flex-shrink: 0; flex-wrap: wrap; }
   .day-filter-bar .df-label { color: var(--gray-dark); font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; margin-right: 2px; }
@@ -180,6 +182,7 @@
   .event-mini-table th { background: #f0f0f0; padding: 5px 8px; text-align: left; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; border-bottom: 1px solid var(--gray); }
   .event-mini-table td { padding: 5px 8px; border-bottom: 1px solid var(--gray); }
   .event-mini-table tr:last-child td { border-bottom: none; }
+  .settlement-note { padding: 8px; border-bottom: 1px solid var(--gray); background: #f7fbf8; font-size: 0.7rem; line-height: 1.4; }
   .no-events { padding: 40px; text-align: center; color: var(--gray-dark); font-style: italic; }
 
   /* ── MODAL ── */
@@ -290,6 +293,7 @@
       <label for="overhead-input">Overhead $</label>
       <input type="number" id="overhead-input" min="0" step="0.01" placeholder="0.00" oninput="onOverheadChange()">
     </div>
+    <button onclick="closeEventWithSettlement()">Close Event</button>
     <button onclick="newEventNoArchive()">New Event</button>
     <button class="accent-btn" onclick="saveAndNewEvent()">Save &amp; New Event →</button>
     <span id="log-count"></span>
@@ -429,6 +433,7 @@ let cart = [];
 let payment = null;
 let editingItemIdx = null; // null = adding new
 let logDayFilter = null; // null = All, or date string
+const PAYMENT_METHODS = ['Ca$h', 'Venmo', 'Square', 'Zelle'];
 
 // ── FIREBASE ──
 firebase.initializeApp({
@@ -485,6 +490,26 @@ function onOverheadChange() {
   renderSummary(filtered, 'summary-bar');
 }
 function getSaleDay(sale) { return sale.timestamp.split(',')[0].trim(); }
+function formatCurrency(v) { return `$${Number(v || 0).toFixed(2)}`; }
+
+function calculateSettlement(sales) {
+  const mernaRev = sales.reduce((s, x) => s + (x.mernaRev || 0), 0);
+  const milaRev = sales.reduce((s, x) => s + (x.milaRev || 0), 0);
+  const cash = sales.filter(x => x.payment === 'Ca$h').reduce((s, x) => s + (x.total || 0), 0);
+  const venmo = sales.filter(x => x.payment === 'Venmo').reduce((s, x) => s + (x.total || 0), 0);
+  const square = sales.filter(x => x.payment === 'Square').reduce((s, x) => s + (x.total || 0), 0);
+  const zelle = sales.filter(x => x.payment === 'Zelle').reduce((s, x) => s + (x.total || 0), 0);
+  const milaCollected = cash + venmo;
+  const mernaCollected = square + zelle;
+  const milaToMerna = Math.max(0, mernaRev - mernaCollected);
+  const mernaToMila = Math.max(0, milaRev - milaCollected);
+  return {
+    cash, venmo, square, zelle,
+    milaCollected, mernaCollected,
+    milaRev, mernaRev,
+    milaToMerna, mernaToMila,
+  };
+}
 
 // ── INIT ──
 async function init() {
@@ -604,6 +629,7 @@ function saveAndNewEvent() {
     closedAt: new Date().toLocaleString(),
     sales: currentSales,
     overhead: getOverhead(),
+    settlement: calculateSettlement(currentSales),
   });
   saveEvents(events);
 
@@ -617,6 +643,59 @@ function saveAndNewEvent() {
   renderLog();
   renderEvents();
   showToast(`"${currentName}" archived. Starting: ${newName.trim()}`);
+  switchTab('register');
+}
+
+function closeEventWithSettlement() {
+  const currentSales = loadSales();
+  const currentName = getEventName();
+  if (!currentSales.length) {
+    alert('No sales recorded for this event yet.');
+    return;
+  }
+
+  const settlement = calculateSettlement(currentSales);
+  const direction = settlement.milaToMerna > 0
+    ? `Mila Venmos Merna: ${formatCurrency(settlement.milaToMerna)}`
+    : settlement.mernaToMila > 0
+      ? `Merna owes Mila: ${formatCurrency(settlement.mernaToMila)}`
+      : 'No transfer needed';
+
+  const summary = [
+    `Close "${currentName}"?`,
+    '',
+    `Mila collected (Ca$h + Venmo): ${formatCurrency(settlement.milaCollected)}`,
+    `Merna collected (Square + Zelle): ${formatCurrency(settlement.mernaCollected)}`,
+    `Mila revenue: ${formatCurrency(settlement.milaRev)}`,
+    `Merna revenue: ${formatCurrency(settlement.mernaRev)}`,
+    direction,
+  ].join('\n');
+
+  if (!confirm(summary)) return;
+
+  const newName = prompt('Name for the new event:', 'New Event');
+  if (!newName) return;
+
+  const events = loadEvents();
+  events.push({
+    name: currentName,
+    createdAt: currentSales.length ? currentSales[0].timestamp : new Date().toLocaleString(),
+    closedAt: new Date().toLocaleString(),
+    sales: currentSales,
+    overhead: getOverhead(),
+    settlement,
+  });
+  saveEvents(events);
+
+  saveSales([]);
+  STATE.overhead = 0;
+  setEventName(newName.trim());
+  clearCart();
+  updateEventNameDisplay();
+  document.getElementById('overhead-input').value = '';
+  renderLog();
+  renderEvents();
+  showToast(direction);
   switchTab('register');
 }
 
@@ -809,9 +888,31 @@ function renderLog() {
     const num = sales.indexOf(sale) + 1;
     const itemsText = sale.items.map(it => `${it.qty}× ${escHtml(it.name)} ($${it.price})`).join('<br>');
     const pc = { 'Ca$h':'cash','Venmo':'venmo','Square':'square','Zelle':'zelle' }[sale.payment]||'';
-    return `<tr><td>${num}</td><td style="white-space:nowrap;font-size:0.68rem">${sale.timestamp}</td><td>${escHtml(sale.customer)}</td><td class="items-cell">${itemsText}</td><td class="money">$${sale.total.toFixed(2)}</td><td><span class="pay-badge ${pc}">${sale.payment}</span></td><td class="money merna-col">$${sale.mernaRev.toFixed(2)}</td><td class="money mila-col">$${sale.milaRev.toFixed(2)}</td></tr>`;
+    return `<tr><td>${num}</td><td style="white-space:nowrap;font-size:0.68rem">${sale.timestamp}</td><td>${escHtml(sale.customer)}</td><td class="items-cell">${itemsText}</td><td class="money">$${sale.total.toFixed(2)}</td><td><span class="pay-badge editable ${pc}" title="Edit payment" onclick="editSalePayment(${sale.id})">${sale.payment}</span></td><td class="money merna-col">$${sale.mernaRev.toFixed(2)}</td><td class="money mila-col">$${sale.milaRev.toFixed(2)}</td></tr>`;
   }).join('');
   if (!rows.length) empty.style.display = '';
+}
+
+function editSalePayment(saleId) {
+  const sales = loadSales();
+  const idx = sales.findIndex(s => s.id === saleId);
+  if (idx === -1) return;
+  const current = sales[idx].payment;
+  const input = prompt(`Payment method (${PAYMENT_METHODS.join(', ')}):`, current);
+  if (!input) return;
+
+  const norm = input.trim().toLowerCase();
+  const next = PAYMENT_METHODS.find(m => m.toLowerCase() === norm);
+  if (!next) {
+    alert(`Invalid payment method. Use: ${PAYMENT_METHODS.join(', ')}`);
+    return;
+  }
+  if (next === current) return;
+
+  sales[idx].payment = next;
+  saveSales(sales);
+  renderLog();
+  showToast(`Payment updated to ${next}.`);
 }
 
 function setDayFilter(day) {
@@ -971,6 +1072,8 @@ function loadEvent(idx) {
         createdAt: currentSales[0].timestamp,
         closedAt: new Date().toLocaleString(),
         sales: currentSales,
+        overhead: getOverhead(),
+        settlement: calculateSettlement(currentSales),
       });
     }
   }
@@ -1000,6 +1103,12 @@ function renderEvents() {
     const gt = ev.sales.reduce((s,x)=>s+x.total,0);
     const mr = ev.sales.reduce((s,x)=>s+x.mernaRev,0);
     const ml = ev.sales.reduce((s,x)=>s+x.milaRev,0);
+    const settlement = ev.settlement || calculateSettlement(ev.sales);
+    const settlementMsg = settlement.milaToMerna > 0
+      ? `Mila Venmoed Merna ${formatCurrency(settlement.milaToMerna)}`
+      : settlement.mernaToMila > 0
+        ? `Merna owed Mila ${formatCurrency(settlement.mernaToMila)}`
+        : 'No settlement transfer';
     const rowsHtml = ev.sales.length ? [...ev.sales].reverse().map((sale, si) => {
       const num = ev.sales.length - si;
       const pc = {'Ca$h':'cash','Venmo':'venmo','Square':'square','Zelle':'zelle'}[sale.payment]||'';
@@ -1025,6 +1134,9 @@ function renderEvents() {
           <div class="summary-cell"><span class="s-label">Total</span><span class="s-value">$${gt.toFixed(2)}</span></div>
           <div class="summary-cell"><span class="s-label">Overhead</span><span class="s-value">$${(ev.overhead||0).toFixed(2)}</span></div>
           <div class="summary-cell profit-cell${(gt-(ev.overhead||0))<0?' loss':''}"><span class="s-label">Net Profit</span><span class="s-value">${(gt-(ev.overhead||0))<0?'-':''}$${Math.abs(gt-(ev.overhead||0)).toFixed(2)}</span></div>
+        </div>
+        <div class="settlement-note">
+          Mila collected (Ca$h+Venmo): ${formatCurrency(settlement.milaCollected)} · Merna collected (Square+Zelle): ${formatCurrency(settlement.mernaCollected)} · ${settlementMsg}
         </div>
         <table class="event-mini-table">
           <thead><tr><th>#</th><th>Time</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Merna</th><th>Mila</th></tr></thead>

@@ -247,9 +247,22 @@
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--green); border-radius: 3px; }
+
+  /* ── ANALYTICS TAB ── */
+  #analytics-panel { flex-direction: column; overflow: hidden; }
+  .analytics-body { flex: 1; overflow-y: auto; background: var(--yellow); padding: 12px; }
+  .charts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(310px, 1fr)); gap: 12px; }
+  .chart-card-wide { grid-column: 1 / -1; }
+  .chart-card { background: var(--white); border: 2.5px solid var(--black); border-radius: 4px; box-shadow: 3px 3px 0 var(--black); padding: 12px 14px; }
+  .chart-card h3 { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; margin-bottom: 10px; color: var(--green); border-bottom: 1.5px solid var(--gray); padding-bottom: 6px; }
+  .chart-wrap { position: relative; height: 200px; }
+  .chart-wrap-wide { height: 230px; }
+  .chart-wrap-tall { height: 270px; }
+  .chart-empty-msg { font-size: 0.78rem; color: var(--gray-dark); font-style: italic; text-align: center; padding: 32px 0; display: none; }
 </style>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -268,6 +281,7 @@
 <div class="tabs">
   <button class="tab-btn active"  onclick="switchTab('register')">Register</button>
   <button class="tab-btn"         onclick="switchTab('log')">Sales Log</button>
+  <button class="tab-btn"         onclick="switchTab('analytics')">Analytics</button>
   <button class="tab-btn"         onclick="switchTab('items')">Items</button>
   <button class="tab-btn"         onclick="switchTab('events')">Events</button>
   <button class="tab-btn"         onclick="switchTab('intern')">Thank Your Unpaid Intern</button>
@@ -375,6 +389,56 @@
       <tbody id="log-tbody"></tbody>
     </table>
     <div class="empty-state" id="log-empty" style="display:none">No sales recorded yet.</div>
+  </div>
+</div>
+
+<!-- ── ANALYTICS TAB ── -->
+<div id="analytics-panel" class="tab-panel">
+  <div class="toolbar">
+    <span>Sales analytics for current event</span>
+    <div class="toolbar-spacer"></div>
+    <span id="analytics-count"></span>
+  </div>
+  <div class="analytics-body">
+    <div class="charts-grid">
+
+      <div class="chart-card chart-card-wide">
+        <h3>Sales &amp; Revenue by Hour of Day</h3>
+        <div class="chart-wrap chart-wrap-wide"><canvas id="chart-by-hour"></canvas></div>
+        <div class="chart-empty-msg" id="chart-empty-by-hour">No sales recorded yet.</div>
+      </div>
+
+      <div class="chart-card">
+        <h3>Revenue by Payment Method</h3>
+        <div class="chart-wrap"><canvas id="chart-by-payment"></canvas></div>
+        <div class="chart-empty-msg" id="chart-empty-by-payment">No sales recorded yet.</div>
+      </div>
+
+      <div class="chart-card">
+        <h3>Merna vs Mila Revenue</h3>
+        <div class="chart-wrap"><canvas id="chart-merna-mila"></canvas></div>
+        <div class="chart-empty-msg" id="chart-empty-merna-mila">No sales recorded yet.</div>
+      </div>
+
+      <div class="chart-card">
+        <h3>Revenue by Category</h3>
+        <div class="chart-wrap"><canvas id="chart-by-category"></canvas></div>
+        <div class="chart-empty-msg" id="chart-empty-by-category">No sales recorded yet.</div>
+      </div>
+
+      <div class="chart-card">
+        <h3>Top Items by Revenue</h3>
+        <div class="chart-wrap chart-wrap-tall"><canvas id="chart-top-rev"></canvas></div>
+        <div class="chart-empty-msg" id="chart-empty-top-rev">No sales recorded yet.</div>
+      </div>
+
+      <div class="chart-card">
+        <h3>Top Items by Units Sold</h3>
+        <div class="chart-wrap chart-wrap-tall"><canvas id="chart-top-qty"></canvas></div>
+        <div class="chart-empty-msg" id="chart-empty-top-qty">No sales recorded yet.</div>
+      </div>
+
+    </div>
   </div>
 </div>
 
@@ -693,6 +757,7 @@ async function init() {
       const inp = document.getElementById('overhead-input');
       if (inp && document.activeElement !== inp) inp.value = STATE.overhead || '';
       updateEventNameDisplay(); renderLog();
+      if (document.getElementById('analytics-panel').classList.contains('active')) renderCharts();
     });
     REFS.archive.onSnapshot(doc => {
       if (!doc.exists) return;
@@ -1568,12 +1633,184 @@ function playKaching() {
   } catch(e) { /* audio not supported */ }
 }
 
+// ── ANALYTICS ──
+const CHART_CAT_COLORS = {
+  sticker: '#006838', zine: '#d4960a', book: '#1565c0',
+  poster: '#e67e22', print: '#8e44ad', pin: '#c0392b', other: '#95a5a6',
+};
+const CHART_PAY_COLORS = { 'Ca$h': '#27ae60', 'Venmo': '#1565c0', 'Square': '#e67e22', 'Zelle': '#8e44ad' };
+let chartInstances = {};
+
+function destroyCharts() {
+  Object.values(chartInstances).forEach(c => { try { c.destroy(); } catch(e){} });
+  chartInstances = {};
+}
+
+function showChartEmpty(id, show) {
+  const empty = document.getElementById(`chart-empty-${id}`);
+  const wrap = empty && empty.previousElementSibling;
+  if (empty) empty.style.display = show ? '' : 'none';
+  if (wrap) wrap.style.display = show ? 'none' : '';
+}
+
+function renderCharts() {
+  if (!window.Chart) return;
+  destroyCharts();
+  Chart.defaults.font.family = "'Lab Mono', monospace";
+  Chart.defaults.font.size = 10;
+
+  const sales = loadSales();
+  const countEl = document.getElementById('analytics-count');
+  if (countEl) countEl.textContent = `${sales.length} sale${sales.length !== 1 ? 's' : ''}`;
+
+  renderHourChart(sales);
+  renderPaymentChart(sales);
+  renderMernaMilaChart(sales);
+  renderCategoryChart(sales);
+  renderTopRevChart(sales);
+  renderTopQtyChart(sales);
+}
+
+function renderHourChart(sales) {
+  if (!sales.length) { showChartEmpty('by-hour', true); return; }
+  showChartEmpty('by-hour', false);
+
+  const counts = new Array(24).fill(0);
+  const revenues = new Array(24).fill(0);
+  sales.forEach(s => {
+    const d = new Date(s.timestamp);
+    if (!isNaN(d)) { counts[d.getHours()]++; revenues[d.getHours()] += s.total || 0; }
+  });
+
+  let minH = 23, maxH = 0;
+  counts.forEach((c, h) => { if (c > 0) { minH = Math.min(minH, h); maxH = Math.max(maxH, h); } });
+  minH = Math.max(0, minH - 1);
+  maxH = Math.min(23, maxH + 1);
+
+  const labels = [], slicedCounts = [], slicedRevs = [];
+  for (let h = minH; h <= maxH; h++) {
+    labels.push(h === 0 ? '12AM' : h < 12 ? `${h}AM` : h === 12 ? '12PM' : `${h-12}PM`);
+    slicedCounts.push(counts[h]);
+    slicedRevs.push(parseFloat(revenues[h].toFixed(2)));
+  }
+
+  chartInstances['by-hour'] = new Chart(document.getElementById('chart-by-hour'), {
+    data: {
+      labels,
+      datasets: [
+        { type: 'bar', label: 'Transactions', data: slicedCounts, backgroundColor: '#00683888', borderColor: '#006838', borderWidth: 1.5, yAxisID: 'y' },
+        { type: 'line', label: 'Revenue ($)', data: slicedRevs, borderColor: '#c8830a', backgroundColor: '#febe1033', borderWidth: 2.5, pointBackgroundColor: '#c8830a', pointRadius: 4, yAxisID: 'y1', tension: 0.3, fill: true },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { labels: { boxWidth: 12, padding: 10 } }, tooltip: { callbacks: { label: ctx => ctx.dataset.yAxisID === 'y1' ? ` Revenue: $${ctx.parsed.y.toFixed(2)}` : ` Transactions: ${ctx.parsed.y}` } } },
+      scales: {
+        y:  { beginAtZero: true, position: 'left',  title: { display: true, text: 'Transactions' }, ticks: { stepSize: 1 } },
+        y1: { beginAtZero: true, position: 'right', title: { display: true, text: 'Revenue ($)' }, ticks: { callback: v => '$' + v }, grid: { drawOnChartArea: false } },
+      }
+    }
+  });
+}
+
+function renderPaymentChart(sales) {
+  const totals = {};
+  sales.forEach(s => { totals[s.payment] = (totals[s.payment] || 0) + (s.total || 0); });
+  const labels = Object.keys(CHART_PAY_COLORS).filter(k => (totals[k] || 0) > 0);
+  if (!labels.length) { showChartEmpty('by-payment', true); return; }
+  showChartEmpty('by-payment', false);
+
+  chartInstances['by-payment'] = new Chart(document.getElementById('chart-by-payment'), {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: labels.map(k => parseFloat(totals[k].toFixed(2))), backgroundColor: labels.map(k => CHART_PAY_COLORS[k]), borderColor: '#111', borderWidth: 1.5 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: ctx => ` $${ctx.parsed.toFixed(2)}` } } } }
+  });
+}
+
+function renderMernaMilaChart(sales) {
+  const merna = parseFloat(sales.reduce((s, x) => s + (x.mernaRev || 0), 0).toFixed(2));
+  const mila  = parseFloat(sales.reduce((s, x) => s + (x.milaRev  || 0), 0).toFixed(2));
+  if (!merna && !mila) { showChartEmpty('merna-mila', true); return; }
+  showChartEmpty('merna-mila', false);
+
+  chartInstances['merna-mila'] = new Chart(document.getElementById('chart-merna-mila'), {
+    type: 'doughnut',
+    data: { labels: ['Merna', 'Mila'], datasets: [{ data: [merna, mila], backgroundColor: ['#006838', '#d4960a'], borderColor: '#111', borderWidth: 1.5 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: ctx => ` $${ctx.parsed.toFixed(2)}` } } } }
+  });
+}
+
+function renderCategoryChart(sales) {
+  const cats = {};
+  sales.forEach(sale => {
+    (sale.items || []).forEach(item => {
+      const cat = item.category || 'other';
+      cats[cat] = (cats[cat] || 0) + (item.price * (item.qty || 1));
+    });
+  });
+  const labels = Object.keys(cats).sort((a, b) => cats[b] - cats[a]);
+  if (!labels.length) { showChartEmpty('by-category', true); return; }
+  showChartEmpty('by-category', false);
+
+  chartInstances['by-category'] = new Chart(document.getElementById('chart-by-category'), {
+    type: 'doughnut',
+    data: { labels, datasets: [{ data: labels.map(k => parseFloat(cats[k].toFixed(2))), backgroundColor: labels.map(k => CHART_CAT_COLORS[k] || '#95a5a6'), borderColor: '#111', borderWidth: 1.5 }] },
+    options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'right', labels: { boxWidth: 12 } }, tooltip: { callbacks: { label: ctx => ` $${ctx.parsed.toFixed(2)}` } } } }
+  });
+}
+
+function renderTopRevChart(sales) {
+  const revs = {};
+  sales.forEach(sale => {
+    (sale.items || []).forEach(item => {
+      revs[item.name] = (revs[item.name] || 0) + (item.price * (item.qty || 1));
+    });
+  });
+  const sorted = Object.entries(revs).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  if (!sorted.length) { showChartEmpty('top-rev', true); return; }
+  showChartEmpty('top-rev', false);
+
+  const truncate = s => s.length > 22 ? s.slice(0, 21) + '…' : s;
+  chartInstances['top-rev'] = new Chart(document.getElementById('chart-top-rev'), {
+    type: 'bar',
+    data: {
+      labels: sorted.map(([n]) => truncate(n)),
+      datasets: [{ label: 'Revenue ($)', data: sorted.map(([, v]) => parseFloat(v.toFixed(2))), backgroundColor: sorted.map((_, i) => i === 0 ? '#febe10' : '#00683866'), borderColor: sorted.map((_, i) => i === 0 ? '#c8830a' : '#006838'), borderWidth: 1.5 }]
+    },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` $${ctx.parsed.x.toFixed(2)}` } } }, scales: { x: { beginAtZero: true, ticks: { callback: v => '$' + v } }, y: { ticks: { font: { size: 9 } } } } }
+  });
+}
+
+function renderTopQtyChart(sales) {
+  const qtys = {};
+  sales.forEach(sale => {
+    (sale.items || []).forEach(item => {
+      qtys[item.name] = (qtys[item.name] || 0) + (item.qty || 1);
+    });
+  });
+  const sorted = Object.entries(qtys).sort((a, b) => b[1] - a[1]).slice(0, 10);
+  if (!sorted.length) { showChartEmpty('top-qty', true); return; }
+  showChartEmpty('top-qty', false);
+
+  const truncate = s => s.length > 22 ? s.slice(0, 21) + '…' : s;
+  chartInstances['top-qty'] = new Chart(document.getElementById('chart-top-qty'), {
+    type: 'bar',
+    data: {
+      labels: sorted.map(([n]) => truncate(n)),
+      datasets: [{ label: 'Units Sold', data: sorted.map(([, v]) => v), backgroundColor: sorted.map((_, i) => i === 0 ? '#febe10' : '#00683866'), borderColor: sorted.map((_, i) => i === 0 ? '#c8830a' : '#006838'), borderWidth: 1.5 }]
+    },
+    options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => ` ${ctx.parsed.x} unit${ctx.parsed.x !== 1 ? 's' : ''}` } } }, scales: { x: { beginAtZero: true, ticks: { stepSize: 1 } }, y: { ticks: { font: { size: 9 } } } } }
+  });
+}
+
 // ── TABS ──
 function switchTab(tab) {
-  const tabs = ['register','log','items','events','intern'];
+  const tabs = ['register','log','analytics','items','events','intern'];
   document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', tabs[i]===tab));
   tabs.forEach(t => document.getElementById(t+'-panel').classList.toggle('active', t===tab));
   if (tab==='log') { document.getElementById('overhead-input').value = getOverhead() || ''; renderLog(); }
+  if (tab==='analytics') renderCharts();
   if (tab==='items') renderItems();
   if (tab==='events') renderEvents();
   if (tab==='intern') renderInternMessages();

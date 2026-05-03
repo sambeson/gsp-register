@@ -23,6 +23,8 @@
 
   /* HEADER */
   header { background: var(--green); color: var(--white); padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; border-bottom: 3px solid var(--black); gap: 12px; }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .header-logo { height: 36px; width: auto; display: block; filter: brightness(0) invert(1); }
   .header-left h1 { font-size: 1rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
   .event-name-wrap { display: flex; align-items: center; gap: 6px; }
   .event-name-wrap span { font-size: 0.7rem; opacity: 0.65; letter-spacing: 0.1em; }
@@ -129,6 +131,17 @@
   .pay-badge.square { background: #fff0e0; border-color: #e67e22; color: #e67e22; }
   .pay-badge.zelle { background: #f3e8ff; border-color: #8e44ad; color: #6c3483; }
   .empty-state { padding: 40px; text-align: center; color: var(--gray-dark); font-style: italic; font-size: 0.85rem; }
+  .day-filter-bar { display: flex; align-items: center; gap: 5px; padding: 6px 12px; background: var(--black); border-bottom: 2px solid #333; flex-shrink: 0; flex-wrap: wrap; }
+  .day-filter-bar .df-label { color: var(--gray-dark); font-size: 0.65rem; letter-spacing: 0.08em; text-transform: uppercase; margin-right: 2px; }
+  .day-filter-btn { padding: 3px 10px; font-family: var(--font); font-size: 0.68rem; font-weight: 700; border: 1.5px solid #555; border-radius: 3px; cursor: pointer; background: transparent; color: var(--gray-dark); transition: background 0.1s, color 0.1s; white-space: nowrap; }
+  .day-filter-btn:hover { background: #333; color: var(--white); }
+  .day-filter-btn.active { background: var(--yellow); color: var(--black); border-color: var(--yellow); }
+  .overhead-wrap { display: flex; align-items: center; gap: 5px; }
+  .overhead-wrap label { color: var(--white); font-size: 0.68rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap; }
+  .overhead-wrap input { padding: 3px 7px; font-family: var(--font); font-size: 0.78rem; border: 2px solid var(--white); border-radius: 3px; background: transparent; color: var(--white); outline: none; width: 90px; }
+  .overhead-wrap input:focus { border-color: var(--yellow); }
+  .summary-cell.profit-cell .s-value { color: var(--green); }
+  .summary-cell.profit-cell.loss .s-value { color: var(--red); }
 
   /* ── ITEMS TAB ── */
   #items-panel { flex-direction: column; overflow: hidden; }
@@ -197,6 +210,7 @@
 
 <header>
   <div class="header-left">
+    <img src="logo.png" alt="Garden State Press" class="header-logo">
     <h1>Garden State Press</h1>
     <div class="event-name-wrap">
       <span>EVENT:</span>
@@ -268,9 +282,14 @@
     <button onclick="exportCSV(loadSales(), getEventName())">Export CSV</button>
     <button class="danger-btn" onclick="clearLog()">Clear Sales</button>
     <div class="toolbar-spacer"></div>
+    <div class="overhead-wrap">
+      <label for="overhead-input">Overhead $</label>
+      <input type="number" id="overhead-input" min="0" step="0.01" placeholder="0.00" oninput="onOverheadChange()">
+    </div>
     <button class="accent-btn" onclick="saveAndNewEvent()">Save &amp; New Event →</button>
     <span id="log-count"></span>
   </div>
+  <div class="day-filter-bar" id="day-filter-bar" style="display:none"></div>
   <div class="summary-bar" id="summary-bar"></div>
   <div class="log-table-wrap">
     <table>
@@ -403,6 +422,7 @@ const DEFAULT_CATALOG = [
 let cart = [];
 let payment = null;
 let editingItemIdx = null; // null = adding new
+let logDayFilter = null; // null = All, or date string
 
 // ── CATALOG STORAGE ──
 function getCatalog() {
@@ -427,9 +447,22 @@ function loadSales() {
 }
 function saveSales(sales) { localStorage.setItem('gsp_sales', JSON.stringify(sales)); }
 
+// ── OVERHEAD ──
+function getOverhead() { return parseFloat(localStorage.getItem('gsp_overhead')||'0')||0; }
+function setOverhead(v) { localStorage.setItem('gsp_overhead', String(v)); }
+function onOverheadChange() {
+  const v = parseFloat(document.getElementById('overhead-input').value)||0;
+  setOverhead(v);
+  const sales = loadSales();
+  const filtered = logDayFilter ? sales.filter(s=>getSaleDay(s)===logDayFilter) : sales;
+  renderSummary(filtered, 'summary-bar');
+}
+function getSaleDay(sale) { return sale.timestamp.split(',')[0].trim(); }
+
 // ── INIT ──
 function init() {
   updateEventNameDisplay();
+  document.getElementById('overhead-input').value = getOverhead() || '';
   renderGrid();
   renderLog();
   renderItems();
@@ -480,11 +513,13 @@ function saveAndNewEvent() {
     createdAt: currentSales.length ? currentSales[0].timestamp : new Date().toLocaleString(),
     closedAt: new Date().toLocaleString(),
     sales: currentSales,
+    overhead: getOverhead(),
   });
   saveEvents(events);
 
   // Reset current
   saveSales([]);
+  setOverhead(0);
   setEventName(newName.trim());
   clearCart();
   updateEventNameDisplay();
@@ -647,16 +682,43 @@ function renderLog() {
   const tbody = document.getElementById('log-tbody');
   const empty = document.getElementById('log-empty');
   document.getElementById('log-count').textContent = `${sales.length} sale${sales.length !== 1 ? 's' : ''}`;
-  renderSummary(sales, 'summary-bar');
+
+  // Build day filter bar
+  const days = [...new Set(sales.map(s => getSaleDay(s)))];
+  const dfBar = document.getElementById('day-filter-bar');
+  if (days.length > 1) {
+    dfBar.style.display = '';
+    // Validate current filter
+    if (logDayFilter && !days.includes(logDayFilter)) logDayFilter = null;
+    dfBar.innerHTML = '<span class="df-label">Day:</span>' +
+      ['All', ...days].map(d => {
+        const isActive = d === 'All' ? !logDayFilter : logDayFilter === d;
+        return `<button class="day-filter-btn${isActive?' active':''}" onclick="setDayFilter(${d==='All'?'null':'\''+d+'\''})">${escHtml(d)}</button>`;
+      }).join('');
+  } else {
+    dfBar.style.display = 'none';
+    logDayFilter = null;
+  }
+
+  const filtered = logDayFilter ? sales.filter(s => getSaleDay(s) === logDayFilter) : sales;
+  renderSummary(filtered, 'summary-bar');
+
   if (!sales.length) { tbody.innerHTML = ''; empty.style.display = ''; return; }
   empty.style.display = 'none';
-  const rows = [...sales].reverse();
-  tbody.innerHTML = rows.map((sale, i) => {
-    const num = sales.length - i;
+  const rows = [...filtered].reverse();
+  const totalSales = sales.length;
+  tbody.innerHTML = rows.map((sale) => {
+    const num = sales.indexOf(sale) + 1;
     const itemsText = sale.items.map(it => `${it.qty}× ${escHtml(it.name)} ($${it.price})`).join('<br>');
     const pc = { 'Ca$h':'cash','Venmo':'venmo','Square':'square','Zelle':'zelle' }[sale.payment]||'';
     return `<tr><td>${num}</td><td style="white-space:nowrap;font-size:0.68rem">${sale.timestamp}</td><td>${escHtml(sale.customer)}</td><td class="items-cell">${itemsText}</td><td class="money">$${sale.total.toFixed(2)}</td><td><span class="pay-badge ${pc}">${sale.payment}</span></td><td class="money merna-col">$${sale.mernaRev.toFixed(2)}</td><td class="money mila-col">$${sale.milaRev.toFixed(2)}</td></tr>`;
   }).join('');
+  if (!rows.length) empty.style.display = '';
+}
+
+function setDayFilter(day) {
+  logDayFilter = day;
+  renderLog();
 }
 
 function renderSummary(sales, containerId) {
@@ -667,6 +729,9 @@ function renderSummary(sales, containerId) {
   const sq = sales.filter(x=>x.payment==='Square').reduce((s,x)=>s+x.total,0);
   const ze = sales.filter(x=>x.payment==='Zelle').reduce((s,x)=>s+x.total,0);
   const gt = sales.reduce((s,x)=>s+x.total,0);
+  const overhead = getOverhead();
+  const profit = gt - overhead;
+  const profitClass = profit < 0 ? ' loss' : '';
   document.getElementById(containerId).innerHTML = `
     <div class="summary-cell"><span class="s-label">Merna Rev</span><span class="s-value">$${m.toFixed(2)}</span></div>
     <div class="summary-cell"><span class="s-label">Mila Rev</span><span class="s-value">$${mi.toFixed(2)}</span></div>
@@ -674,7 +739,8 @@ function renderSummary(sales, containerId) {
     <div class="summary-cell"><span class="s-label">Venmo</span><span class="s-value">$${ve.toFixed(2)}</span></div>
     <div class="summary-cell"><span class="s-label">Square</span><span class="s-value">$${sq.toFixed(2)}</span></div>
     <div class="summary-cell"><span class="s-label">Zelle</span><span class="s-value">$${ze.toFixed(2)}</span></div>
-    <div class="summary-cell"><span class="s-label">Grand Total</span><span class="s-value">$${gt.toFixed(2)}</span></div>`;
+    <div class="summary-cell"><span class="s-label">Total</span><span class="s-value">$${gt.toFixed(2)}</span></div>
+    <div class="summary-cell profit-cell${profitClass}"><span class="s-label">Net Profit</span><span class="s-value">${profit<0?'-':''}$${Math.abs(profit).toFixed(2)}</span></div>`;
 }
 
 function clearLog() {
@@ -824,6 +890,8 @@ function renderEvents() {
           <div class="summary-cell"><span class="s-label">Merna</span><span class="s-value">$${mr.toFixed(2)}</span></div>
           <div class="summary-cell"><span class="s-label">Mila</span><span class="s-value">$${ml.toFixed(2)}</span></div>
           <div class="summary-cell"><span class="s-label">Total</span><span class="s-value">$${gt.toFixed(2)}</span></div>
+          <div class="summary-cell"><span class="s-label">Overhead</span><span class="s-value">$${(ev.overhead||0).toFixed(2)}</span></div>
+          <div class="summary-cell profit-cell${(gt-(ev.overhead||0))<0?' loss':''}"><span class="s-label">Net Profit</span><span class="s-value">${(gt-(ev.overhead||0))<0?'-':''}$${Math.abs(gt-(ev.overhead||0)).toFixed(2)}</span></div>
         </div>
         <table class="event-mini-table">
           <thead><tr><th>#</th><th>Time</th><th>Customer</th><th>Items</th><th>Total</th><th>Payment</th><th>Merna</th><th>Mila</th></tr></thead>
@@ -850,7 +918,7 @@ function switchTab(tab) {
   const tabs = ['register','log','items','events'];
   document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', tabs[i]===tab));
   tabs.forEach(t => document.getElementById(t+'-panel').classList.toggle('active', t===tab));
-  if (tab==='log') renderLog();
+  if (tab==='log') { document.getElementById('overhead-input').value = getOverhead() || ''; renderLog(); }
   if (tab==='items') renderItems();
   if (tab==='events') renderEvents();
 }

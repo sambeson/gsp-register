@@ -209,6 +209,18 @@
   .settlement-note { padding: 8px; border-bottom: 1px solid var(--gray); background: #f7fbf8; font-size: 0.7rem; line-height: 1.4; }
   .no-events { padding: 40px; text-align: center; color: var(--gray-dark); font-style: italic; }
 
+  /* ── INTERN THANKS TAB ── */
+  #intern-panel { flex-direction: column; overflow: hidden; }
+  .intern-body { flex: 1; overflow: auto; background: var(--white); padding: 18px; }
+  .intern-card { border: 2.5px solid var(--black); border-radius: 4px; box-shadow: 3px 3px 0 var(--black); overflow: hidden; }
+  .intern-card h3 { background: var(--yellow); color: var(--black); padding: 10px 14px; font-size: 0.82rem; letter-spacing: 0.06em; text-transform: uppercase; border-bottom: 2px solid var(--black); }
+  .intern-list { list-style: none; }
+  .intern-list li { display: flex; gap: 10px; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid var(--gray); }
+  .intern-list li:last-child { border-bottom: none; }
+  .intern-msg { font-size: 0.74rem; line-height: 1.35; }
+  .intern-copy-btn { padding: 5px 10px; font-family: var(--font); font-size: 0.68rem; font-weight: 700; border: 2px solid var(--green); border-radius: 3px; cursor: pointer; color: var(--green); background: transparent; white-space: nowrap; }
+  .intern-copy-btn:hover { background: var(--green); color: var(--white); }
+
   /* ── MODAL ── */
   .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 1000; align-items: center; justify-content: center; }
   .modal-overlay.open { display: flex; }
@@ -256,6 +268,7 @@
   <button class="tab-btn"         onclick="switchTab('log')">Sales Log</button>
   <button class="tab-btn"         onclick="switchTab('items')">Items</button>
   <button class="tab-btn"         onclick="switchTab('events')">Events</button>
+  <button class="tab-btn"         onclick="switchTab('intern')">Thank Your Unpaid Intern</button>
 </div>
 
 <!-- ── REGISTER TAB ── -->
@@ -388,6 +401,21 @@
     <span id="events-count"></span>
   </div>
   <div class="events-body" id="events-body"></div>
+</div>
+
+<!-- ── INTERN THANKS TAB ── -->
+<div id="intern-panel" class="tab-panel">
+  <div class="toolbar">
+    <span>Copy and paste a message for Sam</span>
+    <div class="toolbar-spacer"></div>
+    <button onclick="renderInternMessages()">Regenerate</button>
+  </div>
+  <div class="intern-body">
+    <div class="intern-card">
+      <h3>Nice Things To Say To Sam</h3>
+      <ul class="intern-list" id="intern-msg-list"></ul>
+    </div>
+  </div>
 </div>
 
 <!-- ── ITEM MODAL ── -->
@@ -1349,6 +1377,83 @@ function deleteEvent(idx) {
   showToast('Event deleted.');
 }
 
+// ── INTERN THANKS TAB ──
+const INTERN_PARTS = {
+  openers: [
+    'Sam,',
+    'Hey Sam,',
+    'Big shoutout to you Sam,',
+    'Sam, seriously,',
+    'Sam, today proved that'
+  ],
+  qualities: [
+    'you were incredibly patient',
+    'you were organized and focused',
+    'you were calm under pressure',
+    'you handled chaos like a pro',
+    'you were thoughtful and reliable',
+    'you were a huge help all day'
+  ],
+  impacts: [
+    'and you made everything run smoother.',
+    'and you kept things moving when it got busy.',
+    'and the whole event felt easier because of you.',
+    'and your support made a real difference.',
+    'and everyone benefited from your help today.',
+    'and you took so much stress off the team.'
+  ],
+  closers: [
+    'Thank you for everything.',
+    'We appreciate you so much.',
+    'You were the MVP today.',
+    'Could not have done it without you.',
+    'You absolutely crushed it.',
+    'You are a legend.'
+  ]
+};
+
+function pickRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function generateInternMessage() {
+  return `${pickRandom(INTERN_PARTS.openers)} ${pickRandom(INTERN_PARTS.qualities)} ${pickRandom(INTERN_PARTS.impacts)} ${pickRandom(INTERN_PARTS.closers)}`;
+}
+
+function getRandomInternMessages(count) {
+  const out = new Set();
+  let tries = 0;
+  while (out.size < count && tries < 250) {
+    out.add(generateInternMessage());
+    tries += 1;
+  }
+  return [...out];
+}
+
+function renderInternMessages() {
+  const list = document.getElementById('intern-msg-list');
+  if (!list) return;
+  const messages = getRandomInternMessages(10);
+  list.innerHTML = messages.map(msg =>
+    `<li><span class="intern-msg">${escHtml(msg)}</span><button class="intern-copy-btn" onclick="copyInternMessage('${msg.replace(/'/g, "\\'")}')">Copy</button></li>`
+  ).join('');
+}
+
+async function copyInternMessage(msg) {
+  try {
+    await navigator.clipboard.writeText(msg);
+    showToast('Copied message for Sam.');
+  } catch {
+    const ta = document.createElement('textarea');
+    ta.value = msg;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    showToast('Copied message for Sam.');
+  }
+}
+
 // ── KA-CHING ──
 function playKaching() {
   try {
@@ -1386,12 +1491,13 @@ function playKaching() {
 
 // ── TABS ──
 function switchTab(tab) {
-  const tabs = ['register','log','items','events'];
+  const tabs = ['register','log','items','events','intern'];
   document.querySelectorAll('.tab-btn').forEach((b,i) => b.classList.toggle('active', tabs[i]===tab));
   tabs.forEach(t => document.getElementById(t+'-panel').classList.toggle('active', t===tab));
   if (tab==='log') { document.getElementById('overhead-input').value = getOverhead() || ''; renderLog(); }
   if (tab==='items') renderItems();
   if (tab==='events') renderEvents();
+  if (tab==='intern') renderInternMessages();
 }
 
 // ── TOAST ──
@@ -1407,6 +1513,7 @@ function escHtml(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;'
 // Close modal on overlay click
 document.getElementById('item-modal').addEventListener('click', function(e) { if (e.target===this) closeItemModal(); });
 
+renderInternMessages();
 init();
 </script>
 </body>

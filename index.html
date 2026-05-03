@@ -1413,7 +1413,7 @@ const INTERN_PARTS = {
     'You are a legend.'
   ]
 };
-const INTERN_PHONE = '7326887874';
+const INTERN_PHONE = '+17326887874';
 
 function pickRandom(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
@@ -1443,8 +1443,15 @@ function renderInternMessages() {
 }
 
 function openSmsToSam(msg) {
-  const smsUrl = `sms:${INTERN_PHONE}?body=${encodeURIComponent(msg)}`;
+  const ua = navigator.userAgent || '';
+  const isApple = /Macintosh|iPhone|iPad|iPod/.test(ua);
+  const sep = isApple ? '&' : '?';
+  const smsUrl = `sms:${INTERN_PHONE}${sep}body=${encodeURIComponent(msg)}`;
+
+  // Also copy the text so user can paste if the OS handler drops prefill fields.
+  copyInternMessage(msg);
   window.location.href = smsUrl;
+  showToast('Opening Messages. If fields are blank, paste from clipboard.');
 }
 
 async function copyInternMessage(msg) {

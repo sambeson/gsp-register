@@ -55,6 +55,7 @@
   .item-btn:active { transform: scale(0.96); }
   .item-btn.mila { background: var(--yellow); color: var(--black); box-shadow: 3px 3px 0 var(--black); }
   .item-btn.merna { background: var(--green); color: var(--white); box-shadow: 3px 3px 0 var(--black); }
+  .item-btn.both { background: var(--yellow); color: var(--black); border-color: var(--green); border-width: 3px; box-shadow: 3px 3px 0 var(--green); }
   .item-btn:hover { transform: translate(-1px,-1px); box-shadow: 4px 4px 0 var(--black); }
   .item-btn .price { margin-top: 4px; font-size: 0.88rem; font-weight: 700; opacity: 0.85; }
   .item-btn .seller-tag { font-size: 0.58rem; letter-spacing: 0.08em; opacity: 0.6; margin-top: 2px; text-transform: uppercase; }
@@ -153,6 +154,7 @@
   .items-table tbody td { padding: 6px 10px; vertical-align: middle; }
   .items-table .merna-cell { color: var(--green); font-weight: 700; }
   .items-table .mila-cell { color: #9a6600; font-weight: 700; }
+  .items-table .both-cell { color: var(--green); font-weight: 700; }
   .icon-btn { padding: 3px 8px; font-family: var(--font); font-size: 0.68rem; font-weight: 700; border-radius: 3px; cursor: pointer; border: 1.5px solid; transition: background 0.1s; }
   .edit-btn { border-color: var(--green); color: var(--green); background: transparent; }
   .edit-btn:hover { background: var(--green); color: var(--white); }
@@ -205,6 +207,8 @@
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb { background: var(--green); border-radius: 3px; }
 </style>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
@@ -286,6 +290,7 @@
       <label for="overhead-input">Overhead $</label>
       <input type="number" id="overhead-input" min="0" step="0.01" placeholder="0.00" oninput="onOverheadChange()">
     </div>
+    <button onclick="newEventNoArchive()">New Event</button>
     <button class="accent-btn" onclick="saveAndNewEvent()">Save &amp; New Event →</button>
     <span id="log-count"></span>
   </div>
@@ -350,6 +355,7 @@
         <select id="modal-seller">
           <option value="Merna">Merna</option>
           <option value="Mila">Mila</option>
+          <option value="Both">Both (50/50)</option>
         </select>
       </div>
     </div>
@@ -424,43 +430,106 @@ let payment = null;
 let editingItemIdx = null; // null = adding new
 let logDayFilter = null; // null = All, or date string
 
+// ── FIREBASE ──
+firebase.initializeApp({
+  apiKey: "AIzaSyD-BmvQ1BIX954DZGyhNk7GLLnPWbgBGZQ",
+  authDomain: "gsp-register.firebaseapp.com",
+  projectId: "gsp-register",
+  storageBucket: "gsp-register.firebasestorage.app",
+  messagingSenderId: "112109531585",
+  appId: "1:112109531585:web:19d66e1d008a79e4abff40"
+});
+const db = firebase.firestore();
+const REFS = {
+  catalog: db.collection('gsp').doc('catalog'),
+  current: db.collection('gsp').doc('current'),
+  archive: db.collection('gsp').doc('archive'),
+};
+
+// ── IN-MEMORY STATE (synced from Firestore) ──
+let STATE = { catalog: [], eventName: 'New Event', sales: [], events: [], overhead: 0 };
+
 // ── CATALOG STORAGE ──
-function getCatalog() {
-  try {
-    const stored = localStorage.getItem('gsp_catalog');
-    return stored ? JSON.parse(stored) : DEFAULT_CATALOG.map(i => ({...i}));
-  } catch { return DEFAULT_CATALOG.map(i => ({...i})); }
+function getCatalog() { return STATE.catalog; }
+function saveCatalog(catalog) {
+  STATE.catalog = catalog;
+  REFS.catalog.set({ items: catalog }).catch(console.error);
 }
-function saveCatalog(catalog) { localStorage.setItem('gsp_catalog', JSON.stringify(catalog)); }
 
 // ── EVENT STORAGE ──
-function getEventName() {
-  return localStorage.getItem('gsp_event_name') || 'New Event';
+function getEventName() { return STATE.eventName; }
+function setEventName(name) {
+  STATE.eventName = name;
+  REFS.current.set({ name, sales: STATE.sales, overhead: STATE.overhead }).catch(console.error);
 }
-function setEventName(name) { localStorage.setItem('gsp_event_name', name); }
-function loadEvents() {
-  try { return JSON.parse(localStorage.getItem('gsp_events') || '[]'); } catch { return []; }
+function loadEvents() { return STATE.events; }
+function saveEvents(events) {
+  STATE.events = events;
+  REFS.archive.set({ events }).catch(console.error);
 }
-function saveEvents(events) { localStorage.setItem('gsp_events', JSON.stringify(events)); }
-function loadSales() {
-  try { return JSON.parse(localStorage.getItem('gsp_sales') || '[]'); } catch { return []; }
+function loadSales() { return STATE.sales; }
+function saveSales(sales) {
+  STATE.sales = sales;
+  REFS.current.set({ name: STATE.eventName, sales, overhead: STATE.overhead }).catch(console.error);
 }
-function saveSales(sales) { localStorage.setItem('gsp_sales', JSON.stringify(sales)); }
-
-// ── OVERHEAD ──
-function getOverhead() { return parseFloat(localStorage.getItem('gsp_overhead')||'0')||0; }
-function setOverhead(v) { localStorage.setItem('gsp_overhead', String(v)); }
+function getOverhead() { return STATE.overhead || 0; }
+function setOverhead(v) {
+  STATE.overhead = v;
+  REFS.current.set({ name: STATE.eventName, sales: STATE.sales, overhead: v }).catch(console.error);
+}
 function onOverheadChange() {
-  const v = parseFloat(document.getElementById('overhead-input').value)||0;
+  const v = parseFloat(document.getElementById('overhead-input').value) || 0;
   setOverhead(v);
   const sales = loadSales();
-  const filtered = logDayFilter ? sales.filter(s=>getSaleDay(s)===logDayFilter) : sales;
+  const filtered = logDayFilter ? sales.filter(s => getSaleDay(s) === logDayFilter) : sales;
   renderSummary(filtered, 'summary-bar');
 }
 function getSaleDay(sale) { return sale.timestamp.split(',')[0].trim(); }
 
 // ── INIT ──
-function init() {
+async function init() {
+  try {
+    const [catalogDoc, currentDoc, archiveDoc] = await Promise.all([
+      REFS.catalog.get(),
+      REFS.current.get(),
+      REFS.archive.get(),
+    ]);
+
+    STATE.catalog   = catalogDoc.exists ? catalogDoc.data().items          : DEFAULT_CATALOG.map(i => ({...i}));
+    STATE.eventName = currentDoc.exists ? currentDoc.data().name           : 'New Event';
+    STATE.sales     = currentDoc.exists ? (currentDoc.data().sales || [])  : [];
+    STATE.overhead  = currentDoc.exists ? (currentDoc.data().overhead || 0) : 0;
+    STATE.events    = archiveDoc.exists ? (archiveDoc.data().events || []) : [];
+
+    // Seed catalog on first run
+    if (!catalogDoc.exists) REFS.catalog.set({ items: STATE.catalog }).catch(console.error);
+
+    // Real-time listeners — update UI when another device makes changes
+    REFS.catalog.onSnapshot(doc => {
+      if (!doc.exists) return;
+      STATE.catalog = doc.data().items;
+      renderGrid(); renderItems();
+    });
+    REFS.current.onSnapshot(doc => {
+      if (!doc.exists) return;
+      STATE.eventName = doc.data().name;
+      STATE.sales     = doc.data().sales || [];
+      STATE.overhead  = doc.data().overhead || 0;
+      const inp = document.getElementById('overhead-input');
+      if (inp && document.activeElement !== inp) inp.value = STATE.overhead || '';
+      updateEventNameDisplay(); renderLog();
+    });
+    REFS.archive.onSnapshot(doc => {
+      if (!doc.exists) return;
+      STATE.events = doc.data().events || [];
+      renderEvents();
+    });
+
+  } catch (e) {
+    console.error('Firebase load failed, falling back to defaults:', e);
+    STATE.catalog = DEFAULT_CATALOG.map(i => ({...i}));
+  }
+
   updateEventNameDisplay();
   document.getElementById('overhead-input').value = getOverhead() || '';
   renderGrid();
@@ -494,6 +563,27 @@ function cancelRenameEvent() {
   document.getElementById('event-name-display').style.display = '';
 }
 
+// ── NEW EVENT (no archive) ──
+function newEventNoArchive() {
+  const currentSales = loadSales();
+  const currentName = getEventName();
+  const warning = currentSales.length > 0
+    ? `Start a new event? "${currentName}" has ${currentSales.length} sale(s) that will NOT be archived and will be lost.`
+    : `Start a new event? "${currentName}" will be discarded.`;
+  if (!confirm(warning)) return;
+  const newName = prompt('Name for the new event:', 'New Event');
+  if (!newName) return;
+  saveSales([]);
+  STATE.overhead = 0;
+  setEventName(newName.trim());
+  clearCart();
+  updateEventNameDisplay();
+  document.getElementById('overhead-input').value = '';
+  renderLog();
+  showToast(`Started new event: ${newName.trim()}`);
+  switchTab('register');
+}
+
 // ── SAVE & NEW EVENT ──
 function saveAndNewEvent() {
   const currentSales = loadSales();
@@ -519,10 +609,11 @@ function saveAndNewEvent() {
 
   // Reset current
   saveSales([]);
-  setOverhead(0);
+  STATE.overhead = 0;
   setEventName(newName.trim());
   clearCart();
   updateEventNameDisplay();
+  document.getElementById('overhead-input').value = '';
   renderLog();
   renderEvents();
   showToast(`"${currentName}" archived. Starting: ${newName.trim()}`);
@@ -659,8 +750,16 @@ function updateChargeBtn() {
 function chargeSale() {
   const customer = document.getElementById('customer-name').value.trim();
   const subtotal = getSubtotal();
-  const mernaRev = cart.reduce((s, c) => c.item.seller === 'Merna' ? s + c.item.price * c.qty : s, 0);
-  const milaRev  = cart.reduce((s, c) => c.item.seller === 'Mila'  ? s + c.item.price * c.qty : s, 0);
+  const mernaRev = cart.reduce((s, c) => {
+    if (c.item.seller === 'Merna') return s + c.item.price * c.qty;
+    if (c.item.seller === 'Both')  return s + (c.item.price * c.qty) / 2;
+    return s;
+  }, 0);
+  const milaRev  = cart.reduce((s, c) => {
+    if (c.item.seller === 'Mila') return s + c.item.price * c.qty;
+    if (c.item.seller === 'Both') return s + (c.item.price * c.qty) / 2;
+    return s;
+  }, 0);
   const sale = {
     id: Date.now(),
     timestamp: new Date().toLocaleString(),
@@ -671,6 +770,7 @@ function chargeSale() {
   const sales = loadSales();
   sales.push(sale);
   saveSales(sales);
+  playKaching();
   showToast(`Sale recorded! $${subtotal.toFixed(2)} via ${payment}`);
   clearCart();
   renderLog();
@@ -688,7 +788,6 @@ function renderLog() {
   const dfBar = document.getElementById('day-filter-bar');
   if (days.length > 1) {
     dfBar.style.display = '';
-    // Validate current filter
     if (logDayFilter && !days.includes(logDayFilter)) logDayFilter = null;
     dfBar.innerHTML = '<span class="df-label">Day:</span>' +
       ['All', ...days].map(d => {
@@ -706,7 +805,6 @@ function renderLog() {
   if (!sales.length) { tbody.innerHTML = ''; empty.style.display = ''; return; }
   empty.style.display = 'none';
   const rows = [...filtered].reverse();
-  const totalSales = sales.length;
   tbody.innerHTML = rows.map((sale) => {
     const num = sales.indexOf(sale) + 1;
     const itemsText = sale.items.map(it => `${it.qty}× ${escHtml(it.name)} ($${it.price})`).join('<br>');
@@ -858,6 +956,39 @@ function resetCatalog() {
   showToast('Catalog reset to defaults.');
 }
 
+// ── LOAD ARCHIVED EVENT ──
+function loadEvent(idx) {
+  const events = loadEvents();
+  const target = events[idx];
+  const currentSales = loadSales();
+  const currentName = getEventName();
+
+  if (currentSales.length > 0) {
+    const archive = confirm(`Archive current event "${currentName}" (${currentSales.length} sale(s)) before switching?\n\nOK = Archive it    Cancel = Discard it`);
+    if (archive) {
+      events.push({
+        name: currentName,
+        createdAt: currentSales[0].timestamp,
+        closedAt: new Date().toLocaleString(),
+        sales: currentSales,
+      });
+    }
+  }
+
+  const newIdx = events.indexOf(target);
+  if (newIdx !== -1) events.splice(newIdx, 1);
+  saveEvents(events);
+
+  saveSales(target.sales);
+  setEventName(target.name);
+  clearCart();
+  updateEventNameDisplay();
+  renderLog();
+  renderEvents();
+  showToast(`Switched to: ${target.name}`);
+  switchTab('register');
+}
+
 // ── EVENTS TAB ──
 function renderEvents() {
   const events = loadEvents();
@@ -882,6 +1013,8 @@ function renderEvents() {
         </div>
         <div class="event-actions" onclick="event.stopPropagation()">
           <button onclick="exportCSV(${JSON.stringify(ev.sales).replace(/"/g,'&quot;')}, '${escHtml(ev.name).replace(/'/g,"\\'")}')">Export CSV</button>
+          <button onclick="renameEvent(${i})">Rename</button>
+          <button onclick="loadEvent(${i})">Load</button>
           <button onclick="deleteEvent(${i})" style="border-color:#ff8a80;color:#ff8a80">Delete</button>
         </div>
       </div>
@@ -904,6 +1037,16 @@ function renderEvents() {
 function toggleEvent(header) {
   header.nextElementSibling.classList.toggle('open');
 }
+function renameEvent(idx) {
+  const events = loadEvents();
+  const newName = prompt('Rename event:', events[idx].name);
+  if (!newName || !newName.trim()) return;
+  events[idx].name = newName.trim();
+  saveEvents(events);
+  renderEvents();
+  showToast('Event renamed.');
+}
+
 function deleteEvent(idx) {
   const events = loadEvents();
   if (!confirm(`Delete event "${events[idx].name}" and all its sales?`)) return;
@@ -911,6 +1054,41 @@ function deleteEvent(idx) {
   saveEvents(events);
   renderEvents();
   showToast('Event deleted.');
+}
+
+// ── KA-CHING ──
+function playKaching() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const now = ctx.currentTime;
+
+    // "Ka" — short noise burst (mechanical drawer)
+    const bufSize = Math.floor(ctx.sampleRate * 0.06);
+    const buf = ctx.createBuffer(1, bufSize, ctx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < bufSize; i++) data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / bufSize, 2);
+    const noise = ctx.createBufferSource();
+    noise.buffer = buf;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.4, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    noise.connect(noiseGain);
+    noiseGain.connect(ctx.destination);
+    noise.start(now);
+
+    // "Ching" — bright bell ring
+    const osc = ctx.createOscillator();
+    const oscGain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(1400, now + 0.06);
+    oscGain.gain.setValueAtTime(0, now + 0.06);
+    oscGain.gain.linearRampToValueAtTime(0.5, now + 0.08);
+    oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.7);
+    osc.connect(oscGain);
+    oscGain.connect(ctx.destination);
+    osc.start(now + 0.06);
+    osc.stop(now + 0.7);
+  } catch(e) { /* audio not supported */ }
 }
 
 // ── TABS ──

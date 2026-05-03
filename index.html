@@ -119,6 +119,30 @@
   .log-table-wrap { flex: 1; overflow: auto; background: var(--white); }
   table { width: 100%; border-collapse: collapse; font-size: 0.73rem; }
   thead th { background: var(--black); color: var(--yellow); padding: 7px 9px; text-align: left; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; position: sticky; top: 0; white-space: nowrap; z-index: 1; }
+  th.sortable { cursor: pointer; user-select: none; }
+  th.sortable:hover { background: #1d1d1d; }
+  thead tr.filter-row th {
+    position: sticky;
+    top: 31px;
+    background: #1a1a1a;
+    padding: 4px 6px;
+    z-index: 1;
+    text-transform: none;
+    letter-spacing: normal;
+  }
+  .log-filter-input, .log-filter-select {
+    width: 100%;
+    min-width: 0;
+    padding: 3px 5px;
+    font-family: var(--font);
+    font-size: 0.67rem;
+    border: 1.5px solid #555;
+    border-radius: 3px;
+    background: #fff;
+    color: var(--black);
+    outline: none;
+  }
+  .log-filter-input:focus, .log-filter-select:focus { border-color: var(--yellow); }
   tbody tr { border-bottom: 1px solid var(--gray); }
   tbody tr:hover { background: #fffbe6; }
   tbody td { padding: 6px 9px; vertical-align: top; }
@@ -287,6 +311,7 @@
 <div id="log-panel" class="tab-panel">
   <div class="toolbar">
     <button onclick="exportCSV(loadSales(), getEventName())">Export CSV</button>
+    <button onclick="clearLogFilters()">Clear Filters</button>
     <button class="danger-btn" onclick="clearLog()">Clear Sales</button>
     <div class="toolbar-spacer"></div>
     <div class="overhead-wrap">
@@ -304,8 +329,32 @@
     <table>
       <thead>
         <tr>
-          <th>#</th><th>Timestamp</th><th>Customer</th><th>Items</th>
-          <th>Total</th><th>Payment</th><th>Merna Rev</th><th>Mila Rev</th>
+          <th class="sortable" onclick="setLogSort('number')"># <span id="sort-ind-number"></span></th>
+          <th class="sortable" onclick="setLogSort('timestamp')">Timestamp <span id="sort-ind-timestamp"></span></th>
+          <th class="sortable" onclick="setLogSort('customer')">Customer <span id="sort-ind-customer"></span></th>
+          <th class="sortable" onclick="setLogSort('items')">Items <span id="sort-ind-items"></span></th>
+          <th class="sortable" onclick="setLogSort('total')">Total <span id="sort-ind-total"></span></th>
+          <th class="sortable" onclick="setLogSort('payment')">Payment <span id="sort-ind-payment"></span></th>
+          <th class="sortable" onclick="setLogSort('mernaRev')">Merna Rev <span id="sort-ind-mernaRev"></span></th>
+          <th class="sortable" onclick="setLogSort('milaRev')">Mila Rev <span id="sort-ind-milaRev"></span></th>
+        </tr>
+        <tr class="filter-row">
+          <th></th>
+          <th><input class="log-filter-input" id="log-filter-timestamp" placeholder="Filter..." oninput="updateLogFilters()"></th>
+          <th><input class="log-filter-input" id="log-filter-customer" placeholder="Filter..." oninput="updateLogFilters()"></th>
+          <th><input class="log-filter-input" id="log-filter-items" placeholder="Filter..." oninput="updateLogFilters()"></th>
+          <th><input class="log-filter-input" id="log-filter-total" type="number" min="0" step="0.01" placeholder="Min" oninput="updateLogFilters()"></th>
+          <th>
+            <select class="log-filter-select" id="log-filter-payment" onchange="updateLogFilters()">
+              <option value="">All</option>
+              <option value="Ca$h">Ca$h</option>
+              <option value="Venmo">Venmo</option>
+              <option value="Square">Square</option>
+              <option value="Zelle">Zelle</option>
+            </select>
+          </th>
+          <th><input class="log-filter-input" id="log-filter-merna" type="number" min="0" step="0.01" placeholder="Min" oninput="updateLogFilters()"></th>
+          <th><input class="log-filter-input" id="log-filter-mila" type="number" min="0" step="0.01" placeholder="Min" oninput="updateLogFilters()"></th>
         </tr>
       </thead>
       <tbody id="log-tbody"></tbody>
@@ -434,6 +483,16 @@ let payment = null;
 let editingItemIdx = null; // null = adding new
 let logDayFilter = null; // null = All, or date string
 const PAYMENT_METHODS = ['Ca$h', 'Venmo', 'Square', 'Zelle'];
+let logSort = { key: 'timestamp', dir: 'desc' };
+let logFilters = {
+  timestamp: '',
+  customer: '',
+  items: '',
+  payment: '',
+  totalMin: null,
+  mernaMin: null,
+  milaMin: null,
+};
 
 // ── FIREBASE ──
 firebase.initializeApp({
@@ -491,6 +550,67 @@ function onOverheadChange() {
 }
 function getSaleDay(sale) { return sale.timestamp.split(',')[0].trim(); }
 function formatCurrency(v) { return `$${Number(v || 0).toFixed(2)}`; }
+
+function updateSortIndicators() {
+  const keys = ['number','timestamp','customer','items','total','payment','mernaRev','milaRev'];
+  keys.forEach(key => {
+    const el = document.getElementById(`sort-ind-${key}`);
+    if (!el) return;
+    el.textContent = (logSort.key === key) ? (logSort.dir === 'asc' ? '▲' : '▼') : '';
+  });
+}
+
+function setLogSort(key) {
+  if (logSort.key === key) {
+    logSort.dir = logSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    logSort.key = key;
+    logSort.dir = (key === 'timestamp' || key === 'number') ? 'desc' : 'asc';
+  }
+  renderLog();
+}
+
+function updateLogFilters() {
+  const getVal = (id) => {
+    const el = document.getElementById(id);
+    return el ? el.value.trim() : '';
+  };
+  const getMin = (id) => {
+    const raw = getVal(id);
+    if (!raw) return null;
+    const n = parseFloat(raw);
+    return Number.isFinite(n) ? n : null;
+  };
+
+  logFilters.timestamp = getVal('log-filter-timestamp').toLowerCase();
+  logFilters.customer = getVal('log-filter-customer').toLowerCase();
+  logFilters.items = getVal('log-filter-items').toLowerCase();
+  logFilters.payment = getVal('log-filter-payment');
+  logFilters.totalMin = getMin('log-filter-total');
+  logFilters.mernaMin = getMin('log-filter-merna');
+  logFilters.milaMin = getMin('log-filter-mila');
+  renderLog();
+}
+
+function clearLogFilters() {
+  const ids = ['log-filter-timestamp','log-filter-customer','log-filter-items','log-filter-total','log-filter-merna','log-filter-mila'];
+  ids.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  const p = document.getElementById('log-filter-payment');
+  if (p) p.value = '';
+  logFilters = {
+    timestamp: '',
+    customer: '',
+    items: '',
+    payment: '',
+    totalMin: null,
+    mernaMin: null,
+    milaMin: null,
+  };
+  renderLog();
+}
 
 function calculateSettlement(sales) {
   const mernaRev = sales.reduce((s, x) => s + (x.mernaRev || 0), 0);
@@ -878,12 +998,73 @@ function renderLog() {
     logDayFilter = null;
   }
 
-  const filtered = logDayFilter ? sales.filter(s => getSaleDay(s) === logDayFilter) : sales;
-  renderSummary(filtered, 'summary-bar');
+  const dayFiltered = logDayFilter ? sales.filter(s => getSaleDay(s) === logDayFilter) : sales;
+  const filtered = dayFiltered.filter(sale => {
+    if (logFilters.timestamp && !String(sale.timestamp || '').toLowerCase().includes(logFilters.timestamp)) return false;
+    if (logFilters.customer && !String(sale.customer || '').toLowerCase().includes(logFilters.customer)) return false;
+    if (logFilters.items) {
+      const itemsText = (sale.items || []).map(it => `${it.qty}x ${it.name}`).join(' ').toLowerCase();
+      if (!itemsText.includes(logFilters.items)) return false;
+    }
+    if (logFilters.payment && sale.payment !== logFilters.payment) return false;
+    if (logFilters.totalMin !== null && (sale.total || 0) < logFilters.totalMin) return false;
+    if (logFilters.mernaMin !== null && (sale.mernaRev || 0) < logFilters.mernaMin) return false;
+    if (logFilters.milaMin !== null && (sale.milaRev || 0) < logFilters.milaMin) return false;
+    return true;
+  });
+
+  const sorted = [...filtered].sort((a, b) => {
+    let av;
+    let bv;
+    switch (logSort.key) {
+      case 'number':
+        av = sales.indexOf(a) + 1;
+        bv = sales.indexOf(b) + 1;
+        break;
+      case 'timestamp':
+        av = a.id || 0;
+        bv = b.id || 0;
+        break;
+      case 'customer':
+        av = String(a.customer || '').toLowerCase();
+        bv = String(b.customer || '').toLowerCase();
+        break;
+      case 'items':
+        av = (a.items || []).map(it => `${it.qty}x ${it.name}`).join(' ').toLowerCase();
+        bv = (b.items || []).map(it => `${it.qty}x ${it.name}`).join(' ').toLowerCase();
+        break;
+      case 'total':
+        av = a.total || 0;
+        bv = b.total || 0;
+        break;
+      case 'payment':
+        av = String(a.payment || '').toLowerCase();
+        bv = String(b.payment || '').toLowerCase();
+        break;
+      case 'mernaRev':
+        av = a.mernaRev || 0;
+        bv = b.mernaRev || 0;
+        break;
+      case 'milaRev':
+        av = a.milaRev || 0;
+        bv = b.milaRev || 0;
+        break;
+      default:
+        av = a.id || 0;
+        bv = b.id || 0;
+        break;
+    }
+    if (av < bv) return logSort.dir === 'asc' ? -1 : 1;
+    if (av > bv) return logSort.dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+
+  renderSummary(sorted, 'summary-bar');
+  updateSortIndicators();
 
   if (!sales.length) { tbody.innerHTML = ''; empty.style.display = ''; return; }
   empty.style.display = 'none';
-  const rows = [...filtered].reverse();
+  const rows = sorted;
   tbody.innerHTML = rows.map((sale) => {
     const num = sales.indexOf(sale) + 1;
     const itemsText = sale.items.map(it => `${it.qty}× ${escHtml(it.name)} ($${it.price})`).join('<br>');
